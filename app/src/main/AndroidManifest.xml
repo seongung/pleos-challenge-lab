@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 좌석 상태 조회. 사용하는 퍼미션만 선언한다(마켓 심사 기준).
+         출처: https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/Vehicle/vehicle-permission -->
+    <uses-permission android:name="pleos.car.permission.CAR_SEATS" />
+
+    <application
+        android:allowBackup="false"
+        android:label="Pleos Journal"
+        android:theme="@android:style/Theme.Material.NoActionBar">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <!-- M0 SDK 확인 화면. 실행: adb shell am start -n com.pleosjournal/.SeatProbeActivity -->
+        <activity android:name=".SeatProbeActivity" android:exported="true" />
+    </application>
+</manifest>
