@@ -20,6 +20,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures { compose = true }
+    // CarUxRestrictions(UC-09)용 Android 표준 차량 API. SDK에 들어 있는 선택 라이브러리라 새 다운로드는 없다.
+    useLibrary("android.car")
     // 저장소 루트의 scenarios/ 를 그대로 앱 assets로 넣는다(복사본을 두지 않기 위함).
     sourceSets["main"].assets.srcDir("../scenarios")
 }

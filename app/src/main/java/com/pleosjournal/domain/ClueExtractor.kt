@@ -19,7 +19,10 @@ enum class ClueKind(val minMs: Long) {
 data class ObservedSpan(val kind: ClueKind, val target: String, val startMs: Long, val endMs: Long)
 
 /** UC-03. 이벤트를 "무엇이 언제부터 언제까지 켜져 있었다"는 구간으로만 바꾼다. */
-class ClueExtractor {
+class ClueExtractor(
+    /** UC-18 항목별 수집 on/off. false인 종류는 구간을 아예 만들지 않는다. */
+    private val enabled: (ClueKind) -> Boolean = { true },
+) {
     private val open = LinkedHashMap<Pair<ClueKind, String>, Long>() // 아직 안 끝난 구간의 시작 시각
     private val closed = mutableListOf<ObservedSpan>()
 
@@ -33,6 +36,7 @@ class ClueExtractor {
                 if (e.target.startsWith("REAR")) ClueKind.REAR_RECLINE to (e.number >= RECLINE_DEG) else return
             else -> return
         }
+        if (!enabled(kind)) return
         val key = kind to e.target
         if (on) {
             open.putIfAbsent(key, e.tMs) // 이미 열려 있으면 시작 시각 유지
@@ -44,6 +48,7 @@ class ClueExtractor {
     /** 트립 종료 시 호출. 아직 켜져 있는 구간을 [endMs]에 닫고, 충분히 지속된 구간만 시작 시각순으로 돌려준다. */
     fun finish(endMs: Long): List<ObservedSpan> {
         open.forEach { (key, start) -> closed += ObservedSpan(key.first, key.second, start, endMs) }
+        // ponytail: 트립이 끝나면 켜져 있던 상태도 잊는다. 짧은 정차 뒤 다음 트립에서는 다시 켜질 때까지 구간이 안 생긴다.
         open.clear()
         return closed.filter { it.endMs - it.startMs >= it.kind.minMs }.sortedBy { it.startMs }
             .also { closed.clear() }

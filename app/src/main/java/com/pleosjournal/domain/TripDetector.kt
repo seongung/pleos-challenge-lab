@@ -5,6 +5,14 @@ import com.pleosjournal.signal.VehicleEvent
 
 data class Trip(val startMs: Long, val endMs: Long, val distanceKm: Double)
 
+/** 이 간격 안에 다음 트립이 시작됐으면 "병합 후보"로 표시한다(UC-10). 자동 병합은 하지 않는다. 튜닝 대상. */
+const val MERGE_GAP_MS = 30 * 60_000L
+
+fun isMergeCandidate(prevEndMs: Long, nextStartMs: Long) = nextStartMs - prevEndMs in 0..MERGE_GAP_MS
+
+/** 두 트립을 하나로 합친 결과(UC-10). 사이의 정차 시간은 트립에 포함된다. */
+fun merge(a: Trip, b: Trip) = Trip(minOf(a.startMs, b.startMs), maxOf(a.endMs, b.endMs), a.distanceKm + b.distanceKm)
+
 /**
  * UC-01 트립 자동 초안. 시동, 기어, 속도 신호 없이 운전석 착석, 운전석 도어, 트립 거리만으로 추정한다.
  *
