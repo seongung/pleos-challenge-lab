@@ -18,26 +18,41 @@
 
 일정 참고: 1차 서류 마감 11-15, 2차 PT 12-03. 서류 전 M0~M1까지 되면 영상과 저장소를 가산점용으로 첨부, 안 되면 목업 영상으로 대체하고 PT까지 M4 완료.
 
-## 패키지 구조 (제안)
+## 정적 구조 (2026-11-14 확정, MVVM)
+
+목표: 기능을 넣고 빼거나 화면 디자인을 바꿔도 다른 계층을 고치지 않는다.
 
 ```
-app/src/main/java/<base package>/
-  signal/            # 신호 소스 인터페이스와 구현
-    VehicleSignalSource.kt
-    VehicleEvent.kt            # sealed class: SeatOccupancy, Door, Window, Wiper, Headlamp, SeatRecline, Hvac, TripDistance ...
-    pleos/PleosVehicleSource.kt
-    replay/ReplaySource.kt     # CSV 재생, 재생 속도 배율 지원
-    dummy/ManualDummySource.kt # 디버그 화면에서 이벤트 주입
-  speech/            # SpeechSource 인터페이스, PleosStt, FakeStt / TTS 동일
-  location/          # LocationSource 인터페이스, PleosFusedLocation, ReplayLocation
-  domain/
-    TripDetector.kt            # 상태 머신 (IDLE → CANDIDATE → ACTIVE → PAUSED → ENDED)
-    ClueExtractor.kt           # 이벤트 → 관측 구간(ObservedSpan)
-    SceneSuggester.kt          # 관측 구간 조합 → 장면 후보 + 질문
-    DrivingGate.kt             # UX 제한 상태 → 입력 허용 여부 (unknown = 차단)
-  data/              # Room entity, dao, repository
-  ui/                # timeline, scene, recall, settings, debug
+ui (View, 화면 담당)  ──►  presentation (ViewModel, View 계약)  ──►  domain / data / signal / speech / platform
 ```
+
+```
+app/src/main/java/com/pleosjournal/
+  ui/                # View. Compose 화면만. JournalUiState를 그리고 JournalActions만 호출한다.
+    JournalScreen.kt           # 타임라인, 장면 후보, 회고, 프라이버시 화면
+    SampleState.kt             # @Preview용 가짜 상태 (에뮬레이터 없이 화면 작업)
+  presentation/      # 화면과 나머지를 잇는 유일한 지점
+    JournalUiState.kt          # View 계약: 화면 상태 + 동작 인터페이스
+    JournalViewModel.kt        # 상태 조립, 동작 구현, 게이트와 동의 검사, 소스 선택
+    Recorder.kt                # 신호 소스 → 트립, 단서, 장면 후보 저장
+  domain/            # 순수 Kotlin. Android, Room, SDK를 모른다.
+    TripDetector.kt            # UC-01 상태 머신, UC-10 병합 규칙
+    ClueExtractor.kt           # UC-03 이벤트 → 관측 구간
+    SceneSuggester.kt          # UC-12 관측 구간 → 질문형 장면 후보
+    DrivingGateRule.kt         # UC-09 판정 규칙 (unknown = 차단)
+  data/              # Room(JournalDb), PrivacyStore
+  signal/            # VehicleEvent, VehicleSignalSource, replay/ReplaySource (pleos/, dummy/ 는 M4)
+  speech/            # SpeechToText, TextToSpeech 인터페이스와 Fake
+  platform/          # DrivingGate (CarUxRestrictions)
+```
+
+규칙 (`ArchitectureTest`가 import를 검사한다):
+
+- `ui`는 `presentation`과 `domain`의 모델만 본다. `data`, `signal`, `speech`, `platform`, Room, SDK를 import 하지 않는다.
+- `domain`은 Android, Room, SDK, 화면을 import 하지 않는다.
+- SDK 타입(`ai.pleos`, `android.car`)은 `signal`, `speech`, `platform` 밖으로 나오지 않는다.
+- 화면에서 기능을 빼려면 `ui`에서 그리지 않으면 된다. 새 기능은 `JournalUiState.kt`에 필드나 동작을 추가한다(기존 의미는 바꾸지 않는다).
+- 주행 제한(UC-09)과 음성 동의(UC-18)는 ViewModel이 다시 막는다. View가 버튼을 잘못 열어도 실행되지 않는다.
 
 - 신호 이벤트는 공통 타입(`VehicleEvent`)으로 정규화한 뒤 도메인으로 보낸다. 실제 SDK 타입이 도메인으로 새어 들어가지 않게 한다.
 - 모든 이벤트에 `source: REAL | REPLAY | DUMMY` 필드를 둔다. UI 배지와 저장 데이터 모두에 남긴다.

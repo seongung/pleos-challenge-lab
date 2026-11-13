@@ -59,6 +59,9 @@ SpeechSource (Pleos/Fake) ┘     DrivingGate (UC-09)                  회고 �
 LocationSource (Pleos/Replay)
 ```
 
+- **계층은 MVVM: `ui`(View) → `presentation`(ViewModel, View 계약) → `domain` / `data` / `signal` / `speech` / `platform`.** 상세와 규칙은 `docs/05_prototype_plan.md`의 "정적 구조".
+- **View 작업은 `ui/` 안에서만 한다.** 화면은 `JournalUiState`를 그리고 `JournalActions`만 호출한다. `ui/`에서 data, signal, speech, platform, Room, SDK를 import 하지 않는다. View 외 작업에서 `ui/`의 디자인을 임의로 바꾸지 않는다.
+- 의존 규칙은 `ArchitectureTest`가 검사한다. 이 테스트를 끄거나 금지 목록을 줄이려면 사용자에게 먼저 확인한다.
 - 모든 외부 입력은 인터페이스 뒤에 둔다. 도메인 로직은 실제 SDK를 몰라야 한다.
 - 소스 선택은 빌드 설정 또는 디버그 메뉴로 바꾼다.
 - **화면에 현재 입력 출처(REAL / REPLAY / DUMMY) 배지를 표시**한다. PT에서 "실제로 되는 것과 더미는?" 질문에 화면으로 답하기 위함.
@@ -78,10 +81,13 @@ LocationSource (Pleos/Replay)
 - 문장에 '·' 기호를 쓰지 않는다. 나열은 ','로.
 - 듣기 좋은 말보다 입상과 품질에 필요한 바른 말을 한다.
 
-## 9. 현재 상태 (2026-11-13 기준)
+## 9. 현재 상태 (2026-11-14 기준)
 
-- 아이디어와 유즈케이스 v2 확정. 코드는 아직 없음.
-- 1차 서류 접수 마감: **2026-11-15 23:59**. 개발 산출물은 선택 제출(가산점).
+- M0~M3 구현 완료, MVVM 구조로 재배치. 에뮬레이터(Pleos Connect v2.1.0)에서 시나리오 재생 기반으로 P1 흐름 동작. 트립 분할(UC-10 일부)과 최초 실행 동의 화면(UC-18 일부)은 미구현.
+- 입력은 아직 전부 REPLAY/Fake다. 실제 Vehicle SDK 연결은 M0 확인 화면(`SeatProbeActivity`)뿐이며, 착석 값 반전 등 미확인 사항은 `docs/06_open_questions.md` 16~18번.
+- 역할: 상주는 아키텍처와 View 외 전부, 빅터는 View(`ui/`), 기능 취사선택, 기획서.
+- 1차 서류 접수 마감: **2026-11-15 23:59**. 목표는 데모 영상 또는 데모 APK까지 제출(가산점).
 - 2차 오프라인 PT: **2026-12-03 ~ 12-04**. PT 전까지 실제 동작하는 앱 필수.
-- 다음 작업: Android 프로젝트 생성 → 에뮬레이터에서 Vehicle SDK 신호 1개 읽기(M0) → M1.
+- 다음 작업: 빅터의 View 디자인과 기능 취사선택 → 데모 영상 녹화 → M4(실제 PleosVehicleSource 연결 확대).
 - 코드 저장소: GitHub private `pleos-challenge-lab` (임시 이름, 변경 예정).
+- 에뮬레이터 실행, 신호 변경 방법: Virtual Console(`adb forward tcp:8088 tcp:8088` 후 http://127.0.0.1:8088/).
