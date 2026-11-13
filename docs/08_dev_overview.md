@@ -164,8 +164,8 @@ JournalDb (기기 로컬) ─► JournalViewModel ─► JournalUiState ─► u
 | PF-02 | Vehicle SDK 공식 문서에 속도, 기어, 시동 신호가 없다 | 트립은 착석, 도어, 거리로 추정하며 오판이 발생한다. UC-10이 필수 |
 | PF-03 | STT, TTS, FusedLocation SDK는 문서상 준비 중이다 | 인터페이스만 구현하고 Fake로 대체 |
 | PF-04 | 좌석 착석 값이 가상 콘솔의 표시와 반대로 수신된다 (Occupied일 때 false) | 원인 미확인 (open question 17). 현재는 에뮬레이터 관측에 맞춰 false를 착석으로 변환한다. 실차 확인 필요 |
-| PF-06 | "현재 트립 거리" 신호는 에뮬레이터에서 지원되지 않는다 (ERROR_NOT_SUPPORTED_PROPERTY) | 누적 주행거리(odometer)로 대체 |
 | PF-05 | 주행 제한 전환은 가상 콘솔의 기어 선택으로 수행한다. 문서의 adb 명령은 동작하지 않는다 | 시험 절차 |
+| PF-06 | "현재 트립 거리" 신호는 에뮬레이터에서 지원되지 않는다 (ERROR_NOT_SUPPORTED_PROPERTY) | 누적 주행거리(odometer)로 대체 |
 
 ## 7. 알려진 제한
 
