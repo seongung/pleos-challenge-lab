@@ -5,7 +5,7 @@
 | 문서 ID | PJ-SWAD-08 |
 | 대상 | Pleos Journal (가제) Android 앱 |
 | 기준일 | 2026-11-14 |
-| 기준 구현 | 마일스톤 M0~M3, 단위 테스트 23건 |
+| 기준 구현 | 마일스톤 M0~M3, M4 일부(실제 차량 신호 소스), 단위 테스트 25건 |
 | 관련 문서 | `04_usecases.md` (요구사항 원문), `05_prototype_plan.md` (마일스톤), `06_open_questions.md` (미확인 사항), `09_view_guide.md` (View 계층 매뉴얼) |
 
 ## 1. 목적과 범위
@@ -53,9 +53,9 @@ ui  ──►  presentation  ──►  domain / data / signal / speech / platfo
 |---|---|---|
 | `ui` | 화면 표시와 화면 내 상호작용 | `JournalScreen`, `SampleState` |
 | `presentation` | 상태 조립, 동작 처리, 접근 제어, 입력 출처 선택 | `JournalUiState`, `JournalActions`, `JournalViewModel`, `Recorder` |
-| `domain` | 판정 규칙. 순수 Kotlin | `TripDetector`, `ClueExtractor`, `SceneSuggester`, `isInputAllowed` |
+| `domain` | 판정 규칙. 순수 Kotlin | `TripDetector`, `merge`, `split`, `ClueExtractor`, `SceneSuggester`, `isInputAllowed` |
 | `data` | 로컬 영속화 | `JournalDb` (Room), `PrivacyStore` |
-| `signal` | 차량 신호 입력의 추상화 | `VehicleEvent`, `VehicleSignalSource`, `ReplaySource` |
+| `signal` | 차량 신호 입력의 추상화 | `VehicleEvent`, `VehicleSignalSource`, `ReplaySource`, `PleosVehicleSource` |
 | `speech` | 음성 입출력의 추상화 | `SpeechToText`, `TextToSpeech`, `FakeStt`, `FakeTts` |
 | `platform` | 플랫폼 서비스 연동 | `DrivingGate` (CarUxRestrictions) |
 
@@ -86,6 +86,22 @@ JournalDb (기기 로컬) ─► JournalViewModel ─► JournalUiState ─► u
 ```
 
 모든 `VehicleEvent`는 발생 시각과 입력 출처를 포함한다. 도메인 로직은 이벤트 시각만 사용하며 시스템 시계를 읽지 않는다. 따라서 시나리오 재생 결과는 결정적이다.
+
+실제 신호(REAL)는 이벤트가 없는 동안에도 트립 종료를 판정해야 하므로, `Recorder`가 30초 주기로 `TripDetector.tick`에 현재 시각을 전달한다. 재생(REPLAY)에서는 사용하지 않는다.
+
+### 3.4.1 실제 신호 매핑 (`PleosVehicleSource`)
+
+| 내부 신호 | SDK API | 변환 | 근거 |
+|---|---|---|---|
+| `SEAT_OCCUPIED` | `Seat.registerSeatOccupancy` | 원시값 false를 착석으로 본다 | 에뮬레이터 관측 (PF-04) |
+| `DOOR_OPEN` | `Door.registerDoorPosition` | 위치값이 0보다 크면 열림 | 에뮬레이터 관측 |
+| `TRIP_DISTANCE_KM` | `Odometer.registerDistanceDriven` | 누적 주행거리(km)를 그대로 사용. 판정은 증가분만 본다 | 공식 문서 (단위 km) |
+| `WINDOW_POSITION_PCT` | `Window.registerWindowPosition` | 위치값을 그대로 사용. 0보다 크면 열림 | 에뮬레이터 관측 |
+| `WIPER_ACTIVE` | `Wiper.registerWiperState` | 앞 유리의 `WiperState.ON` | 열거값 |
+| `HEADLAMP_LOW` | `Light.registerLowBeamLightState` | `LightState.ON`. 주간주행등은 제외 | 열거값 |
+| `SEAT_RECLINE_DEG` | `Seat.registerSeatBackrestAnglePosition` | 뒷좌석의 위치값을 그대로 사용 | 단위 미확인 |
+
+좌석과 도어의 위치 대응은 좌핸들(LHD) 기준이다. 값의 의미가 공식 문서에 없는 항목은 `PleosVehicleSource`의 상수와 매핑 함수 한 곳에서 관리한다.
 
 ### 3.5 인터페이스
 
@@ -118,14 +134,14 @@ JournalDb (기기 로컬) ─► JournalViewModel ─► JournalUiState ─► u
 
 | ID | 요구사항 | 구현 구성요소 | 검증 | 입력 출처 | 상태 |
 |---|---|---|---|---|---|
-| UC-01 | 트립 자동 초안 | `TripDetector`, `Recorder` | `TripDetectorTest` 8건 | REPLAY | 구현 |
-| UC-03 | 관측 단서 기록 | `ClueExtractor` | `ClueExtractorTest` 5건 | REPLAY | 구현 |
+| UC-01 | 트립 자동 초안 | `TripDetector`, `Recorder`, `PleosVehicleSource` | `TripDetectorTest` 8건, 에뮬레이터 확인 | REPLAY, REAL | 구현 |
+| UC-03 | 관측 단서 기록 | `ClueExtractor`, `PleosVehicleSource` | `ClueExtractorTest` 5건, 에뮬레이터 확인 | REPLAY, REAL | 구현 |
 | UC-11 | 저널 타임라인 | `JournalScreen` | 에뮬레이터 확인 | 저장 데이터 | 구현 (지도 제외) |
-| UC-12 | 장면 후보 제안, 확인, 거부 | `SceneSuggester`, `JournalViewModel` | `SceneSuggesterTest` 3건 | 저장 데이터 | 구현 (확인 취소 제외) |
+| UC-12 | 장면 후보 제안, 확인, 거부, 되돌리기 | `SceneSuggester`, `JournalViewModel` | `SceneSuggesterTest` 3건, 에뮬레이터 확인 | 저장 데이터 | 구현 |
 | UC-07b | 음성 회고 | `SpeechToText`, `JournalViewModel` | 에뮬레이터 확인 | REPLAY (Fake STT) | 부분 구현 |
 | UC-09 | 주행 제한 게이트 | `DrivingGate`, `isInputAllowed` | 판정 규칙 테스트 1건, 에뮬레이터 확인 | REAL | 구현 |
-| UC-10 | 트립 보정 | `mergeTrips`, `deleteTrip` | `TripCorrectionTest` 2건, 에뮬레이터 확인 | 앱 내부 | 부분 구현 (분할 제외) |
-| UC-18 | 프라이버시 제어 | `PrivacyStore`, `Recorder` | `TripCorrectionTest` 1건, 에뮬레이터 확인 | 앱 내부 | 부분 구현 (최초 실행 동의 제외) |
+| UC-10 | 트립 보정 (병합, 분할, 삭제) | `merge`, `split`, `JournalDao` | `TripCorrectionTest` 4건, 에뮬레이터 확인 | 앱 내부 | 구현 (분할은 정차 지점에서만 가능) |
+| UC-18 | 프라이버시 제어 (최초 동의, 일시정지, 음성 동의, 항목별 수집, 삭제) | `PrivacyStore`, `Recorder` | `TripCorrectionTest` 1건, 에뮬레이터 확인 | 앱 내부 | 구현 |
 | M0 | Vehicle SDK 신호 조회와 변경 콜백 | `SeatProbeActivity` | 에뮬레이터 확인 | REAL | 구현 (확인용 화면) |
 | UC-02, 04, 06, 13, 14 | P2 | 없음 | | | 미구현 |
 | UC-08, 15, 17 | P3 | 없음 | | | 미구현 |
@@ -134,8 +150,8 @@ JournalDb (기기 로컬) ─► JournalViewModel ─► JournalUiState ─► u
 
 | 출처 | 해당 항목 |
 |---|---|
-| REAL | 주행 제한 상태 (CarUxRestrictions), 좌석 착석 신호 조회 (확인용 화면 한정) |
-| REPLAY | 차량 신호 전체 (시나리오 CSV), 음성 인식 결과 |
+| REAL | 주행 제한 상태 (CarUxRestrictions), 차량 신호 7종 ("실제 신호 기록" 선택 시. 3.4.1) |
+| REPLAY | 차량 신호 전체 ("재생" 선택 시. 시나리오 CSV), 음성 인식 결과 |
 | 미제공 | 음성 합성 출력, 위치, 지도 |
 
 ## 6. 플랫폼 확인 사항
@@ -147,7 +163,8 @@ JournalDb (기기 로컬) ─► JournalViewModel ─► JournalUiState ─► u
 | PF-01 | 주행 제한 상태(기어 D)에서는 플랫폼이 앱 화면 전체를 "주행 중에는 사용할 수 없습니다" 화면으로 가린다 | 주행 중 화면을 쓰는 기능(UC-13, UC-06의 확인 표시)은 현재 불가. 가능 조건은 미확인 (open question 19) |
 | PF-02 | Vehicle SDK 공식 문서에 속도, 기어, 시동 신호가 없다 | 트립은 착석, 도어, 거리로 추정하며 오판이 발생한다. UC-10이 필수 |
 | PF-03 | STT, TTS, FusedLocation SDK는 문서상 준비 중이다 | 인터페이스만 구현하고 Fake로 대체 |
-| PF-04 | 운전석 착석 값이 가상 콘솔의 표시와 반대로 수신된다 | 원인 미확인 (open question 17). 실제 신호 연결의 선행 과제 |
+| PF-04 | 좌석 착석 값이 가상 콘솔의 표시와 반대로 수신된다 (Occupied일 때 false) | 원인 미확인 (open question 17). 현재는 에뮬레이터 관측에 맞춰 false를 착석으로 변환한다. 실차 확인 필요 |
+| PF-06 | "현재 트립 거리" 신호는 에뮬레이터에서 지원되지 않는다 (ERROR_NOT_SUPPORTED_PROPERTY) | 누적 주행거리(odometer)로 대체 |
 | PF-05 | 주행 제한 전환은 가상 콘솔의 기어 선택으로 수행한다. 문서의 adb 명령은 동작하지 않는다 | 시험 절차 |
 
 ## 7. 알려진 제한
@@ -158,8 +175,9 @@ JournalDb (기기 로컬) ─► JournalViewModel ─► JournalUiState ─► u
 | LM-02 | 기록 일시정지 중의 이동은 기록되지 않는다 |
 | LM-03 | 트립 종료 시 진행 중이던 신호 상태를 초기화한다. 짧은 정차 직후의 트립에서 관측 구간이 누락될 수 있다 |
 | LM-04 | DB 스키마 변경 시 기존 기록을 삭제한다 (개발 단계 설정) |
-| LM-05 | 실제 차량 신호 소스(`PleosVehicleSource`)가 없다. 실제 신호로 트립을 기록할 수 없다 |
-| LM-06 | 트립 분할을 위한 거리 표본을 저장하지 않는다 |
+| LM-05 | 실제 신호의 값 해석 일부(착석, 도어, 창문, 등받이)는 에뮬레이터 관측에 근거한다. 실차에서 검증되지 않았다 |
+| LM-06 | 트립 분할은 기록된 정차 지점에서만 가능하다. 임의 시각 분할은 지원하지 않는다 |
+| LM-07 | 실제 신호 기록은 앱 화면이 살아 있는 동안에만 동작한다. 백그라운드 기록(서비스)은 없다 |
 
 ## 8. 빌드와 시험
 

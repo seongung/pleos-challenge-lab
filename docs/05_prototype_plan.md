@@ -41,7 +41,7 @@ app/src/main/java/com/pleosjournal/
     SceneSuggester.kt          # UC-12 관측 구간 → 질문형 장면 후보
     DrivingGateRule.kt         # UC-09 판정 규칙 (unknown = 차단)
   data/              # Room(JournalDb), PrivacyStore
-  signal/            # VehicleEvent, VehicleSignalSource, replay/ReplaySource (pleos/, dummy/ 는 M4)
+  signal/            # VehicleEvent, VehicleSignalSource, replay/ReplaySource, pleos/PleosVehicleSource
   speech/            # SpeechToText, TextToSpeech 인터페이스와 Fake
   platform/          # DrivingGate (CarUxRestrictions)
 ```

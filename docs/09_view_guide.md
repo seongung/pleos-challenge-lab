@@ -50,6 +50,9 @@ View는 `state`로 화면을 구성하고, 사용자의 동작을 `actions`의 �
 | `sttSource` | String | 음성 인식의 입력 출처 |
 | `inputAllowed` | Boolean | 입력 허용 여부. 주행 제한 중이거나 상태를 알 수 없으면 false |
 | `voiceAllowed` | Boolean | 음성 입력 허용 여부. 입력 허용이면서 음성 기록에 동의한 경우 true |
+| `voiceBusy` | Boolean | 음성을 듣는 중인지 여부. true인 동안 다른 음성 입력을 시작할 수 없다 |
+| `needsOnboarding` | Boolean | 최초 실행 동의가 필요한지 여부. true이면 동의 화면을 제시한다. 동의 전에는 기록되지 않는다 |
+| `recordingReal` | Boolean | 실제 차량 신호(REAL)를 기록하는 중인지 여부 |
 | `status` | String | 기록기 상태 문자열. 디버그와 데모 용도 |
 | `scenarios` | List | 재생 가능한 시나리오(`file`, `title`). 디버그와 데모 용도 |
 | `trips` | List | 트립 목록. 최신순 |
@@ -65,11 +68,20 @@ View는 `state`로 화면을 구성하고, 사용자의 동작을 `actions`의 �
 | `source` | String | 이 트립의 입력 출처 |
 | `spans` | List | 관측 구간 |
 | `scenes` | List | 장면 후보. 사용자가 거부한 후보는 포함되지 않는다 |
+| `hiddenSceneCount` | Int | 사용자가 거부해 숨긴 장면 후보 수 |
+| `stops` | List | 트립 안의 정차 구간 (`StopUi`). 각 정차는 트립을 나눌 수 있는 지점이다 |
 | `memoQuestion` | String | 트립 회고 질문 |
 | `memo`, `memoSource` | String? | 회고 답변과 그 입력 출처. 없으면 null |
 | `memoListening` | Boolean | 회고 답변을 듣는 중인지 여부 |
 | `canMergeWithPrevious` | Boolean | 직전 트립과 병합 가능 여부 |
 | `mergeCandidateGapMin` | Long? | 병합 후보인 경우 직전 트립과의 간격(분). 후보가 아니면 null |
+
+`StopUi`
+
+| 필드 | 형식 | 의미 |
+|---|---|---|
+| `id` | Long | 정차 식별자 |
+| `startMs`, `endMs` | Long | 정차의 시작, 종료 시각 |
 
 `SpanUi`
 
@@ -106,12 +118,18 @@ View는 `state`로 화면을 구성하고, 사용자의 동작을 `actions`의 �
 | 동작 | 효과 | 선행 조건 | 비가역 |
 |---|---|---|---|
 | `replay(file)` | 시나리오를 재생한다. 디버그와 데모 용도 | 없음 | |
+| `recordReal()` | 실제 차량 신호 기록을 시작한다. 재생 중이면 재생을 멈춘다 | 없음 | |
+| `stopRecording()` | 재생 또는 실제 신호 기록을 멈춘다 | 없음 | |
 | `confirmScene(sceneId)` | 장면 후보를 확인 처리한다 | `inputAllowed` | |
 | `denyScene(sceneId)` | 장면 후보를 숨긴다. 관측 구간은 유지된다 | `inputAllowed` | |
+| `resetScene(sceneId)` | 확인 또는 답변을 취소하고 미확인 상태로 되돌린다 | `inputAllowed` | |
+| `restoreHiddenScenes(tripId)` | 숨긴 장면 후보를 다시 미확인 상태로 표시한다 | `inputAllowed` | |
 | `answerSceneByVoice(sceneId)` | 질문을 음성으로 듣고 답변을 저장한다 | `voiceAllowed` | |
 | `recordMemoByVoice(tripId)` | 트립 회고를 음성으로 듣고 저장한다 | `voiceAllowed` | |
-| `mergeWithPrevious(tripId)` | 직전 트립과 병합한다 | `inputAllowed`, `canMergeWithPrevious` | 예 |
+| `mergeWithPrevious(tripId)` | 직전 트립과 병합한다. 두 트립 사이의 공백은 정차로 남는다 | `inputAllowed`, `canMergeWithPrevious` | |
+| `splitAtStop(tripId, stopId)` | 정차 지점에서 트립을 둘로 나눈다 | `inputAllowed` | |
 | `deleteTrip(tripId)` | 트립과 종속 데이터를 삭제한다 | `inputAllowed` | 예 |
+| `completeOnboarding(voiceConsent)` | 최초 실행 동의를 완료하고 기록을 허용한다 | `inputAllowed` | |
 | `setPaused(paused)` | 기록 일시정지를 설정한다 | `inputAllowed` | |
 | `setVoiceConsent(consent)` | 음성 기록 동의를 설정한다 | `inputAllowed` | |
 | `setKindEnabled(kind, enabled)` | 관측 종류별 수집을 설정한다 | `inputAllowed` | |
@@ -119,6 +137,7 @@ View는 `state`로 화면을 구성하고, 사용자의 동작을 `actions`의 �
 
 선행 조건을 충족하지 않은 호출은 ViewModel이 무시한다. 오류는 발생하지 않는다.
 동작의 결과는 반환값이 아니라 갱신된 `state`로 전달된다.
+병합과 분할은 서로의 역연산이다. 병합한 트립은 그 정차 지점에서 나누면 원래대로 돌아간다. 병합 시 회고 메모는 합쳐지고, 분할 시 앞쪽 트립에 남는다.
 
 ## 3. 요구사항
 
@@ -154,7 +173,8 @@ View는 `state`로 화면을 구성하고, 사용자의 동작을 `actions`의 �
 | VR-21 | `voiceAllowed`가 false이면 음성 입력 UI를 제공하지 않아야 한다 | DC-03, UC-18 |
 | VR-22 | 비가역 동작(`deleteTrip`, `deleteAll`)은 사용자의 재확인을 거쳐 호출해야 한다 | 오조작 방지 |
 | VR-23 | 문자 입력(키보드)을 요구하지 않아야 한다. 입력 수단은 버튼과 음성으로 한정한다 | 차량 환경 |
-| VR-24 | 듣는 중(`listening`, `memoListening`)에는 다른 음성 입력을 시작할 수 없게 해야 한다 | 중복 입력 방지 |
+| VR-24 | `voiceBusy`가 true인 동안에는 다른 음성 입력을 시작할 수 없게 해야 한다 | 중복 입력 방지 |
+| VR-25 | `needsOnboarding`이 true이면 기록 내용과 저장 위치를 알리는 동의 화면을 제시해야 하며, 동의 없이 다른 화면으로 넘어가지 않아야 한다 | UC-18 |
 
 ### 3.4 자원 요구사항
 
@@ -199,6 +219,8 @@ View는 `state`로 화면을 구성하고, 사용자의 동작을 `actions`의 �
 - "재생: 제천 당일치기"는 약 16초 후 트립 1건과 장면 후보 4건을 생성한다.
 - "재생: 편의점 경유"는 트립 2건과 병합 후보 표시를 생성한다.
 - 음성 입력 UI는 프라이버시 설정에서 음성 기록 동의를 켠 경우에만 나타난다.
+- 최초 실행 시 동의 화면이 먼저 나타난다. 다시 보려면 앱 데이터를 지운다 (`adb shell pm clear com.pleosjournal`).
+- "실제 신호 기록"은 가상 콘솔(Virtual Console)에서 바꾼 차량 신호를 받는다. 트립 종료 판정은 실시간 기준이라 수 분이 걸린다.
 
 ### 5.3 계약 변경 요청
 
@@ -216,12 +238,9 @@ View 계약에 없는 데이터나 동작이 필요한 경우 다음을 정리�
 
 | ID | 내용 |
 |---|---|
-| VD-01 | 타임라인에 트립이 있는 상태에서 새 트립이 추가되면 스크롤 위치가 유지되어 새 트립이 화면 밖에 놓인다 |
 | VD-02 | 관측 구간이 많은 트립 카드는 한 화면을 넘어, 스크롤해야 회고 입력이 보인다 |
-| VD-03 | 디버그 요소(시나리오 재생, 상태 문자열)가 본 화면에 함께 표시된다. 데모에 필요하므로 접근 경로는 유지해야 한다 |
+| VD-03 | 디버그 요소(시나리오 재생, 실제 신호 기록 시작과 중지, 상태 문자열)가 본 화면에 함께 표시된다. 데모에 필요하므로 접근 경로는 유지해야 한다 |
 | VD-04 | 프라이버시 설정이 독립된 화면이 아니라 같은 화면 안에서 전환된다 |
-| VD-05 | 확인 또는 거부한 장면 후보를 되돌리는 UI가 없다. 대응하는 동작도 계약에 없다 |
-| VD-06 | 듣는 중에 해당 버튼만 비활성화되고 다른 음성 버튼은 활성 상태로 남는다 (VR-24 미충족). 중복 호출은 ViewModel이 무시하므로 동작 오류는 없다 |
 
 ## 부록 A. AI 도구용 지시문
 

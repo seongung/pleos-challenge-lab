@@ -85,11 +85,13 @@ LocationSource (Pleos/Replay)
 
 ## 9. 현재 상태 (2026-11-14 기준)
 
-- M0~M3 구현 완료, MVVM 구조로 재배치. 에뮬레이터(Pleos Connect v2.1.0)에서 시나리오 재생 기반으로 P1 흐름 동작. 트립 분할(UC-10 일부)과 최초 실행 동의 화면(UC-18 일부)은 미구현.
-- 입력은 아직 전부 REPLAY/Fake다. 실제 Vehicle SDK 연결은 M0 확인 화면(`SeatProbeActivity`)뿐이며, 착석 값 반전 등 미확인 사항은 `docs/06_open_questions.md` 16~18번.
+- M0~M3 구현 완료, MVVM 구조. P1 유즈케이스 8개가 에뮬레이터(Pleos Connect v2.1.0)에서 동작한다. 트립 분할은 정차 지점에서만 가능.
+- M4 일부 완료: 실제 Vehicle SDK 신호 7종을 기록 흐름에 연결(`PleosVehicleSource`, 화면의 "실제 신호 기록"). 값 해석 일부는 에뮬레이터 관측에 근거하며 실차 미검증(`docs/06_open_questions.md` 17, 20번).
+- 음성 인식은 Fake(시나리오 문장), 음성 합성은 소리 없음. Pleos STT/TTS는 문서상 준비 중.
+- 남은 것: 데모 영상 녹화, release APK, P2/P3 유즈케이스, 백그라운드 기록.
 - 역할: 아키텍처 담당은 View 외 전부, View 담당은 `ui/`, 기능 취사선택, 기획서.
 - 1차 서류 접수 마감: **2026-11-15 23:59**. 목표는 데모 영상 또는 데모 APK까지 제출(가산점).
 - 2차 오프라인 PT: **2026-12-03 ~ 12-04**. PT 전까지 실제 동작하는 앱 필수.
-- 다음 작업: View 디자인과 기능 취사선택 → 데모 영상 녹화 → M4(실제 PleosVehicleSource 연결 확대).
+- 다음 작업: View 디자인과 기능 취사선택 → 데모 영상 녹화 → release APK.
 - 코드 저장소: GitHub private `pleos-challenge-lab` (임시 이름, 변경 예정).
 - 에뮬레이터 실행, 신호 변경 방법: Virtual Console(`adb forward tcp:8088 tcp:8088` 후 http://127.0.0.1:8088/).
