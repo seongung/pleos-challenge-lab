@@ -1,11 +1,21 @@
+# Android / Gradle local output
 .gradle/
-build/
+**/build/
 local.properties
 .idea/
 *.iml
 .kotlin/
 .DS_Store
-*.apk
-*.aab
+
+# Secrets and signing material
+.env
+.env.*
+!.env.example
 *.jks
 *.keystore
+keystore.properties
+
+# Keep final reviewed release APKs only under apk/
+*.apk
+*.aab
+!apk/*.apk
