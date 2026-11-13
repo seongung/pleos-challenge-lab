@@ -1,10 +1,13 @@
-package com.pleosjournal.domain
+package com.pleosjournal.presentation
 
 import com.pleosjournal.data.JournalDao
 import com.pleosjournal.data.Privacy
 import com.pleosjournal.data.SceneEntity
 import com.pleosjournal.data.SpanEntity
 import com.pleosjournal.data.TripEntity
+import com.pleosjournal.domain.ClueExtractor
+import com.pleosjournal.domain.TripDetector
+import com.pleosjournal.domain.suggestScenes
 import com.pleosjournal.signal.VehicleSignalSource
 import kotlinx.coroutines.flow.MutableStateFlow
 

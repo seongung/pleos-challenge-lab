@@ -1,15 +1,13 @@
-package com.pleosjournal.domain
+package com.pleosjournal.platform
 
 import android.car.Car
 import android.car.drivingstate.CarUxRestrictions
 import android.car.drivingstate.CarUxRestrictionsManager
 import android.content.Context
 import android.util.Log
+import com.pleosjournal.domain.isInputAllowed
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-
-/** UC-09 판정 규칙. 제한이 "없다"고 확인된 경우에만 입력을 연다. 모르면(null) 닫는다. */
-fun isInputAllowed(requiresDistractionOptimization: Boolean?) = requiresDistractionOptimization == false
 
 /**
  * 주행 제한 게이트(UC-09). 플랫폼의 CarUxRestrictions만 근거로 쓴다.

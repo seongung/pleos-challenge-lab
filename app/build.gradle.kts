@@ -33,6 +33,9 @@ dependencies {
     implementation(platform("androidx.compose:compose-bom:2025.08.00"))
     implementation("androidx.compose.material3:material3")
     implementation("androidx.activity:activity-compose:1.10.1")
+    // Android Studio에서 에뮬레이터 없이 화면을 미리 보는 @Preview용(View 담당자 작업용). 버전은 BOM이 정한다.
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    debugImplementation("androidx.compose.ui:ui-tooling")
 
     // Room: 로컬 저장(네트워크 없음). ksp는 @Dao, @Entity에서 SQL 코드를 컴파일 시점에 생성한다.
     implementation("androidx.room:room-ktx:2.8.5")
