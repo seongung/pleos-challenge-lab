@@ -1,137 +1,255 @@
-# 09. 화면(View) 작업 가이드
+# 09. View 계층 개발 매뉴얼
 
-화면 담당(빅터)과, 화면 작업을 돕는 AI가 읽는 문서. 2026-11-14 기준.
-AI에게 일을 시킬 때는 맨 아래 "AI에게 줄 지시문"을 그대로 붙여 넣으면 된다.
+| 항목 | 내용 |
+|---|---|
+| 문서 ID | PJ-VIEW-09 |
+| 대상 | `ui` 패키지 (`app/src/main/java/com/pleosjournal/ui/`) |
+| 기준일 | 2026-11-14 |
+| 독자 | View 계층 개발자, View 작업을 수행하는 AI 도구 |
+| 관련 문서 | `08_dev_overview.md` (아키텍처), `04_usecases.md` (요구사항) |
 
-## 1. 작업 범위
+## 1. 목적과 범위
 
-고쳐도 되는 곳은 `app/src/main/java/com/pleosjournal/ui/` 하나다.
+본 문서는 View 계층의 작업 범위, View 계약, 준수 요구사항, 작업 절차, 검증 방법을 정의한다.
+화면 디자인 자체(색, 배치, 문구)는 규정하지 않으며 View 계층의 재량이다.
+
+### 1.1 작업 범위
+
+| 구분 | 대상 | 권한 |
+|---|---|---|
+| View 계층 | `ui/` 패키지 전체. 하위 패키지와 파일 추가 포함 | 변경 가능 |
+| View 계약 | `presentation/JournalUiState.kt` | 읽기 전용. 변경은 요청 절차(5.3)를 따른다 |
+| 그 외 | `presentation`, `domain`, `data`, `signal`, `speech`, `platform`, Gradle 설정, 매니페스트 | 변경 불가 |
+
+### 1.2 현재 구성
 
 | 파일 | 내용 |
 |---|---|
 | `ui/JournalScreen.kt` | 화면 전체. 타임라인, 트립 카드, 장면 후보, 회고, 프라이버시 설정 |
-| `ui/SampleState.kt` | 미리보기용 가짜 상태와 아무 일도 안 하는 동작(`NoActions`) |
+| `ui/SampleState.kt` | 미리보기용 표본 상태(`sampleState`)와 무동작 구현(`NoActions`) |
 
-파일을 나누거나 새 파일을 만드는 것은 자유다. `ui/` 안이면 된다(예: `ui/theme/`, `ui/components/`).
+## 2. View 계약
 
-읽기만 하는 곳: `presentation/JournalUiState.kt` (화면이 받는 상태와 부를 수 있는 동작의 전체 목록).
-
-그 밖(`presentation`, `domain`, `data`, `signal`, `speech`, `platform`, Gradle 설정, 매니페스트)은 고치지 않는다. 필요하면 상주에게 요청한다.
-
-## 2. 화면이 받는 것과 부를 수 있는 것
+### 2.1 진입점
 
 ```kotlin
 @Composable
 fun JournalScreen(state: JournalUiState, actions: JournalActions)
 ```
 
-이 함수의 이름과 매개변수는 바꾸지 않는다(`MainActivity`가 부른다). 안쪽은 전부 바꿔도 된다.
+진입점의 이름과 매개변수는 고정이다. 내부 구현은 제한 없이 변경할 수 있다.
+View는 `state`로 화면을 구성하고, 사용자의 동작을 `actions`의 함수 호출로 전달한다. 그 외 경로로 데이터를 읽거나 쓰지 않는다.
 
-### 상태 (`JournalUiState`)
+계약의 기준 정의는 `presentation/JournalUiState.kt`이며, 본 절과 다를 경우 코드가 우선한다.
 
-| 필드 | 의미 |
+### 2.2 상태: `JournalUiState`
+
+| 필드 | 형식 | 의미 |
+|---|---|---|
+| `inputSource` | String | 차량 신호의 입력 출처. REAL, REPLAY, DUMMY |
+| `sttSource` | String | 음성 인식의 입력 출처 |
+| `inputAllowed` | Boolean | 입력 허용 여부. 주행 제한 중이거나 상태를 알 수 없으면 false |
+| `voiceAllowed` | Boolean | 음성 입력 허용 여부. 입력 허용이면서 음성 기록에 동의한 경우 true |
+| `status` | String | 기록기 상태 문자열. 디버그와 데모 용도 |
+| `scenarios` | List | 재생 가능한 시나리오(`file`, `title`). 디버그와 데모 용도 |
+| `trips` | List | 트립 목록. 최신순 |
+| `privacy` | `PrivacyUi` | 프라이버시 설정 상태 |
+
+`TripUi`
+
+| 필드 | 형식 | 의미 |
+|---|---|---|
+| `id` | Long | 트립 식별자 |
+| `startMs`, `endMs` | Long | 시작, 종료 시각 (epoch ms) |
+| `distanceKm` | Double | 이동 거리 |
+| `source` | String | 이 트립의 입력 출처 |
+| `spans` | List | 관측 구간 |
+| `scenes` | List | 장면 후보. 사용자가 거부한 후보는 포함되지 않는다 |
+| `memoQuestion` | String | 트립 회고 질문 |
+| `memo`, `memoSource` | String? | 회고 답변과 그 입력 출처. 없으면 null |
+| `memoListening` | Boolean | 회고 답변을 듣는 중인지 여부 |
+| `canMergeWithPrevious` | Boolean | 직전 트립과 병합 가능 여부 |
+| `mergeCandidateGapMin` | Long? | 병합 후보인 경우 직전 트립과의 간격(분). 후보가 아니면 null |
+
+`SpanUi`
+
+| 필드 | 형식 | 의미 |
+|---|---|---|
+| `kind` | `ClueKind` | 관측 종류. WIPER, HEADLAMP, WINDOW_OPEN, REAR_RECLINE, DOOR_OPEN |
+| `target` | String | 대상 위치. DRIVER, FRONT_PASSENGER, FRONT_LEFT, FRONT_RIGHT, REAR_LEFT, REAR_RIGHT, FRONT, 또는 빈 문자열 |
+| `startMs`, `endMs` | Long | 구간의 시작, 종료 시각 |
+| `startFraction`, `endFraction` | Float | 트립 전체를 0~1로 둔 상대 위치. 시간축 표시용 |
+
+`SceneUi`
+
+| 필드 | 형식 | 의미 |
+|---|---|---|
+| `id` | Long | 장면 후보 식별자 |
+| `kind` | `ClueKind` | 근거가 된 관측 종류 |
+| `question` | String | 질문 문구 |
+| `isOpenQuestion` | Boolean | true면 음성으로 답하는 질문, false면 확인 또는 거부로 답하는 질문 |
+| `evidence` | List | 근거 관측 구간 |
+| `confirmed` | Boolean | 사용자 확인 여부 |
+| `answer`, `answerSource` | String? | 음성 답변과 그 입력 출처 |
+| `listening` | Boolean | 이 질문의 답변을 듣는 중인지 여부 |
+
+`PrivacyUi`
+
+| 필드 | 형식 | 의미 |
+|---|---|---|
+| `paused` | Boolean | 기록 일시정지 여부 |
+| `voiceConsent` | Boolean | 음성 기록 동의 여부 |
+| `kinds` | List | 관측 종류별 수집 여부 (`kind`, `enabled`) |
+
+### 2.3 동작: `JournalActions`
+
+| 동작 | 효과 | 선행 조건 | 비가역 |
+|---|---|---|---|
+| `replay(file)` | 시나리오를 재생한다. 디버그와 데모 용도 | 없음 | |
+| `confirmScene(sceneId)` | 장면 후보를 확인 처리한다 | `inputAllowed` | |
+| `denyScene(sceneId)` | 장면 후보를 숨긴다. 관측 구간은 유지된다 | `inputAllowed` | |
+| `answerSceneByVoice(sceneId)` | 질문을 음성으로 듣고 답변을 저장한다 | `voiceAllowed` | |
+| `recordMemoByVoice(tripId)` | 트립 회고를 음성으로 듣고 저장한다 | `voiceAllowed` | |
+| `mergeWithPrevious(tripId)` | 직전 트립과 병합한다 | `inputAllowed`, `canMergeWithPrevious` | 예 |
+| `deleteTrip(tripId)` | 트립과 종속 데이터를 삭제한다 | `inputAllowed` | 예 |
+| `setPaused(paused)` | 기록 일시정지를 설정한다 | `inputAllowed` | |
+| `setVoiceConsent(consent)` | 음성 기록 동의를 설정한다 | `inputAllowed` | |
+| `setKindEnabled(kind, enabled)` | 관측 종류별 수집을 설정한다 | `inputAllowed` | |
+| `deleteAll()` | 모든 기록을 삭제한다 | `inputAllowed` | 예 |
+
+선행 조건을 충족하지 않은 호출은 ViewModel이 무시한다. 오류는 발생하지 않는다.
+동작의 결과는 반환값이 아니라 갱신된 `state`로 전달된다.
+
+## 3. 요구사항
+
+"~해야 한다"는 필수, "~할 수 있다"는 허용이다.
+
+### 3.1 구조 요구사항
+
+`ArchitectureTest`가 자동으로 검증한다.
+
+| ID | 요구사항 |
 |---|---|
-| `inputSource`, `sttSource` | 입력 출처 배지에 쓸 글자 (REAL / REPLAY / DUMMY) |
-| `inputAllowed` | false면 입력, 편집, 회고 UI를 열지 않는다 |
-| `voiceAllowed` | 음성 입력 가능 여부 (주행 제한 없음 + 음성 기록 동의) |
-| `status` | 기록기 상태 한 줄 (디버그, 데모용) |
-| `scenarios` | 재생 가능한 시나리오 목록 (디버그, 데모용) |
-| `trips` | 최신순 트립 목록 |
-| `privacy` | 일시정지, 음성 동의, 항목별 수집 상태 |
+| VR-01 | `ui`는 `com.pleosjournal.data`, `signal`, `speech`, `platform`을 import 하지 않아야 한다 |
+| VR-02 | `ui`는 `androidx.room`, `androidx.lifecycle`, `android.car`, `ai.pleos`를 import 하지 않아야 한다 |
+| VR-03 | `ui`가 참조하는 프로젝트 코드는 `com.pleosjournal.presentation`과 `com.pleosjournal.domain`의 모델로 한정해야 한다 |
 
-트립(`TripUi`): 시작, 끝 시각(ms), 거리, 출처, 관측 구간 `spans`, 장면 후보 `scenes`, 회고 질문과 답(`memoQuestion`, `memo`), 병합 가능 여부와 후보 간격.
+### 3.2 표시 요구사항
 
-관측 구간(`SpanUi`): 종류(`kind`), 대상 위치(`target`), 시작, 끝 시각, 트립 안에서의 위치 비율(`startFraction`, `endFraction`. 0~1, 시간축 막대용).
+자동 검증 대상이 아니다. 리뷰로 확인한다.
 
-장면 후보(`SceneUi`): 질문(`question`), 말로 답하는 질문인지(`isOpenQuestion`), 근거 구간(`evidence`), 확인 여부, 답변, 듣는 중 여부.
+| ID | 요구사항 | 근거 |
+|---|---|---|
+| VR-10 | 관측 구간은 사실로만 표시해야 한다. 문구, 아이콘, 색으로 해석을 부여하지 않아야 한다 | DC-02 |
+| VR-11 | 장면 후보의 질문은 근거 관측 구간(`evidence`)과 함께 표시해야 한다 | DC-02 |
+| VR-12 | 확인되지 않은 장면 후보를 확정된 사실처럼 표시하지 않아야 한다 | DC-02 |
+| VR-13 | 입력 출처(`inputSource`, `sttSource`, 트립의 `source`, 답변의 출처)를 화면에 표시해야 한다. 형태와 위치는 변경할 수 있다 | DC-08 |
+| VR-14 | "완전 온디바이스"라는 표현을 사용하지 않아야 한다. "외부 API를 직접 사용하지 않음", "기기 안에만 저장"은 사용할 수 있다 | DC-06 |
 
-### 동작 (`JournalActions`)
+### 3.3 상호작용 요구사항
 
-`replay(file)`, `confirmScene(id)`, `denyScene(id)`, `answerSceneByVoice(id)`, `recordMemoByVoice(tripId)`,
-`mergeWithPrevious(tripId)`, `deleteTrip(tripId)`, `setPaused(b)`, `setVoiceConsent(b)`, `setKindEnabled(kind, b)`, `deleteAll()`
+| ID | 요구사항 | 근거 |
+|---|---|---|
+| VR-20 | `inputAllowed`가 false이면 입력, 편집, 회고, 설정 변경 UI를 제공하지 않아야 한다 | DC-03 |
+| VR-21 | `voiceAllowed`가 false이면 음성 입력 UI를 제공하지 않아야 한다 | DC-03, UC-18 |
+| VR-22 | 비가역 동작(`deleteTrip`, `deleteAll`)은 사용자의 재확인을 거쳐 호출해야 한다 | 오조작 방지 |
+| VR-23 | 문자 입력(키보드)을 요구하지 않아야 한다. 입력 수단은 버튼과 음성으로 한정한다 | 차량 환경 |
+| VR-24 | 듣는 중(`listening`, `memoListening`)에는 다른 음성 입력을 시작할 수 없게 해야 한다 | 중복 입력 방지 |
 
-정확한 정의와 설명은 `presentation/JournalUiState.kt`의 주석이 기준이다.
+### 3.4 자원 요구사항
 
-## 3. 자주 하는 작업
+| ID | 요구사항 | 근거 |
+|---|---|---|
+| VR-30 | 네트워크로 불러오는 이미지, 글꼴, 지도 타일을 사용하지 않아야 한다 | DC-01 |
+| VR-31 | 라이브러리 의존성을 추가하지 않아야 한다. 필요한 경우 요청 절차(5.3)를 따른다 | 작업 범위 |
 
-| 하고 싶은 것 | 방법 |
+## 4. 실행 환경
+
+| 항목 | 내용 |
 |---|---|
-| 디자인(색, 글꼴, 배치, 카드 모양) 변경 | `ui/`만 고친다 |
-| 버튼, 라벨, 안내 문구 변경 | `ui/JournalScreen.kt`의 문자열을 고친다 |
-| 화면에서 기능 빼기 | 그 부분을 그리지 않는다. 다른 코드는 그대로 둔다 |
-| 화면 전환, 탭, 펼침, 삭제 재확인 같은 "보이는 방식" | `ui/` 안에서 `remember`로 관리한다 |
-| 새 화면 상태 미리 보기 | `ui/SampleState.kt`에 가짜 상태를 추가하고 `@Preview`를 만든다 |
-| 장면 질문 문구("이때 비가 왔나요?") 변경 | `domain/SceneSuggester.kt`에 있다. 상주에게 요청 |
-| 지금 상태에 없는 데이터나 새 동작 필요 | 상주에게 요청. `JournalUiState.kt`에 추가된 뒤 화면에서 쓴다 |
+| 표시 영역 | 가로로 긴 화면. 에뮬레이터 전체 2560x1440 중 오른쪽 약 2/3. 왼쪽은 플랫폼의 차량 상태 영역 |
+| 배율 | 전체 UI를 1.5배로 확대한 상태 (`JournalScreen` 상단의 `Density` 설정). 조정할 수 있다 |
+| 테마 | 어두운 테마 |
+| 주행 중 | 플랫폼이 앱 화면 전체를 가린다 (PF-01). 주행 중 화면은 설계 대상이 아니다. `inputAllowed == false` 상태의 화면은 상태 미확인 시의 안전장치로만 유지한다 |
 
-## 4. 지켜야 할 규칙
+## 5. 작업 절차
 
-구조 규칙 (어기면 `ArchitectureTest`가 실패한다):
+### 5.1 작업 유형별 변경 위치
 
-- `ui/`에서 `com.pleosjournal.data`, `signal`, `speech`, `platform`, `androidx.room`, `androidx.lifecycle`, `android.car`, `ai.pleos`를 import 하지 않는다.
-- `ui/`에서 쓸 수 있는 우리 코드는 `com.pleosjournal.presentation.*`과 `com.pleosjournal.domain.ClueKind` 같은 모델뿐이다.
+| 작업 | 변경 위치 |
+|---|---|
+| 디자인 변경 (색, 글꼴, 배치, 구성요소 형태) | `ui/` |
+| 버튼, 라벨, 안내 문구 변경 | `ui/JournalScreen.kt` |
+| 기능의 화면 제거 | `ui/`에서 해당 부분을 표시하지 않는다. 다른 계층은 변경하지 않는다 |
+| 화면 전환, 탭, 펼침, 재확인 등 표시 방식에 한정된 상태 | `ui/` 내부에서 `remember`로 관리한다 |
+| 미리보기 상태 추가 | `ui/SampleState.kt` |
+| 장면 질문 문구 변경 | `domain/SceneSuggester.kt`. 요청 절차(5.3) |
+| 계약에 없는 데이터 또는 동작 | 요청 절차(5.3) |
 
-제품 규칙 (테스트가 못 잡는다. 사람이 지킨다):
+### 5.2 검증
 
-1. **단정하지 않는다.** 관측 구간 라벨은 사실만 쓴다("와이퍼 작동 14:02~14:40"). "비 오는 날" 같은 해석을 라벨, 아이콘, 색으로 붙이지 않는다. 해석은 질문으로만 나오고, 사용자가 확인한 것만 확정으로 보여준다.
-2. **근거를 숨기지 않는다.** 장면 질문 옆에는 `evidence`(근거 구간)를 항상 함께 보여준다.
-3. **출처 배지를 없애지 않는다.** `inputSource`, `sttSource`, 트립의 `source`는 화면에 보여야 한다. 심사에서 "실제와 더미의 구분"을 화면으로 답하기 위함이다. 모양과 위치는 바꿔도 된다.
-4. **`inputAllowed`가 false면 입력 UI를 열지 않는다.** 확인, 거부, 음성, 병합, 삭제, 설정 변경 모두 해당한다. `voiceAllowed`가 false면 음성 버튼을 열지 않는다.
-5. **되돌릴 수 없는 동작은 재확인한다.** `deleteTrip`, `deleteAll`은 한 번 누름으로 실행되지 않게 한다.
-6. **키보드 입력을 넣지 않는다.** 차량 화면이다. 입력은 버튼과 음성으로 한다.
-7. **"완전 온디바이스"라고 쓰지 않는다.** 표현은 "외부 API를 직접 사용하지 않음". "기기 안에만 저장"은 써도 된다.
-8. **외부 리소스를 쓰지 않는다.** 네트워크로 불러오는 이미지, 글꼴, 지도 타일 금지. 아이콘과 글꼴은 앱에 포함된 것만 쓴다.
-9. **새 라이브러리를 추가하지 않는다.** 필요하면 상주에게 요청한다(Gradle 파일은 화면 작업 범위 밖).
+| 단계 | 방법 | 통과 기준 |
+|---|---|---|
+| 미리보기 | Android Studio에서 `JournalScreen.kt`의 Split 또는 Design 보기 | 대상 상태가 의도대로 표시된다 |
+| 단위 시험 | `./gradlew testDebugUnitTest` | 전체 통과. `ArchitectureTest` 포함 |
+| 에뮬레이터 | `./gradlew installDebug` 후 시나리오 재생 | 3장의 요구사항을 충족한다 |
 
-## 5. 화면 환경
+에뮬레이터 확인 시 참고 사항:
 
-- 에뮬레이터의 앱 영역은 가로로 긴 화면이다(전체 2560x1440 중 오른쪽 약 2/3). 왼쪽은 차량 상태 영역이다.
-- 멀리서 보는 화면이라 현재 전체 UI를 1.5배로 키워 두었다(`JournalScreen` 맨 위의 `Density` 설정). 조정해도 된다.
-- 어두운 테마가 기본이다.
-- **주행 중(기어 D)에는 플랫폼이 앱 화면 전체를 가린다.** 주행 중 화면은 디자인할 필요가 없다. `inputAllowed == false`인 화면은 "상태를 아직 모를 때"의 안전장치로만 남긴다.
+- "재생: 제천 당일치기"는 약 16초 후 트립 1건과 장면 후보 4건을 생성한다.
+- "재생: 편의점 경유"는 트립 2건과 병합 후보 표시를 생성한다.
+- 음성 입력 UI는 프라이버시 설정에서 음성 기록 동의를 켠 경우에만 나타난다.
 
-## 6. 확인 방법
+### 5.3 계약 변경 요청
 
-1. **미리보기**: Android Studio에서 `JournalScreen.kt`를 열고 오른쪽 위 Split 또는 Design. 에뮬레이터가 필요 없다.
-2. **테스트**: `./gradlew testDebugUnitTest` (계층 규칙 위반 여부 포함).
-3. **에뮬레이터**: `./gradlew installDebug` 후 앱에서 "재생: 제천 당일치기"를 누른다. 16초쯤 뒤 트립과 장면 후보가 뜬다.
-   병합 화면은 "재생: 편의점 경유"로 본다. 음성 버튼은 프라이버시 설정에서 "음성 기록 동의"를 켜야 보인다.
+View 계약에 없는 데이터나 동작이 필요한 경우 다음을 정리해 아키텍처 담당에게 요청한다.
 
-## 7. 지금 화면의 알려진 문제 (개선 대상)
+1. 필요한 필드 또는 동작의 이름과 의미
+2. 사용하려는 화면과 목적
+3. 관련 유즈케이스 ID
 
-- 타임라인에 트립이 이미 있을 때 새 트립이 위에 추가되면 스크롤이 기존 위치에 머물러 새 트립이 안 보인다.
-- 제천 트립 카드는 한 화면을 넘어, 스크롤해야 회고 버튼이 보인다.
-- 디버그용 요소(시나리오 재생 버튼, 상태 한 줄)가 본 화면에 섞여 있다. 데모 영상에서는 재생 버튼이 필요하니, 숨기더라도 접근할 방법은 남긴다.
-- 프라이버시 설정이 별도 화면이 아니라 같은 화면 안에서 바뀐다.
-- 확인하거나 거부한 장면 후보를 되돌리는 UI가 없다(동작도 아직 없다. 필요하면 요청).
+계약은 추가 방식으로만 변경한다. 기존 필드의 의미는 바꾸지 않는다. 계약이 갱신되기 전에는 View에서 임시 값이나 임의 구현으로 대체하지 않는다.
 
-## 8. AI에게 줄 지시문
+## 6. 알려진 결함
 
-아래를 AI 대화 맨 앞에 붙여 넣는다. 이 저장소에서 Claude Code를 쓰면 `CLAUDE.md`가 자동으로 읽히므로 "이번 작업" 줄만 써도 된다.
+현재 View 구현의 결함이며 개선 대상이다.
+
+| ID | 내용 |
+|---|---|
+| VD-01 | 타임라인에 트립이 있는 상태에서 새 트립이 추가되면 스크롤 위치가 유지되어 새 트립이 화면 밖에 놓인다 |
+| VD-02 | 관측 구간이 많은 트립 카드는 한 화면을 넘어, 스크롤해야 회고 입력이 보인다 |
+| VD-03 | 디버그 요소(시나리오 재생, 상태 문자열)가 본 화면에 함께 표시된다. 데모에 필요하므로 접근 경로는 유지해야 한다 |
+| VD-04 | 프라이버시 설정이 독립된 화면이 아니라 같은 화면 안에서 전환된다 |
+| VD-05 | 확인 또는 거부한 장면 후보를 되돌리는 UI가 없다. 대응하는 동작도 계약에 없다 |
+| VD-06 | 듣는 중에 해당 버튼만 비활성화되고 다른 음성 버튼은 활성 상태로 남는다 (VR-24 미충족). 중복 호출은 ViewModel이 무시하므로 동작 오류는 없다 |
+
+## 부록 A. AI 도구용 지시문
+
+View 작업을 AI 도구에 지시할 때 대화의 첫머리에 사용한다.
+이 저장소에서 Claude Code를 사용하는 경우 `CLAUDE.md`가 자동으로 적용되므로 마지막 줄만 작성해도 된다.
 
 ```
-이 저장소는 차량용 Android 앱(Kotlin, Jetpack Compose)이다. 나는 화면(View) 담당이다.
+이 저장소는 차량용 Android 앱(Kotlin, Jetpack Compose)이다. 이번 작업의 대상은 View 계층이다.
 
 먼저 읽을 것:
-- docs/09_view_guide.md (이 작업의 규칙)
-- app/src/main/java/com/pleosjournal/presentation/JournalUiState.kt (화면이 받는 상태와 부를 수 있는 동작)
+- docs/09_view_guide.md (View 계층 개발 매뉴얼)
+- app/src/main/java/com/pleosjournal/presentation/JournalUiState.kt (View 계약)
 - app/src/main/java/com/pleosjournal/ui/JournalScreen.kt (현재 화면)
 
-규칙:
-- app/src/main/java/com/pleosjournal/ui/ 안의 파일만 고친다. 그 밖의 코드, Gradle 설정, 매니페스트는 고치지 않는다.
-- JournalScreen(state: JournalUiState, actions: JournalActions) 의 이름과 매개변수는 바꾸지 않는다.
-- 화면은 state만 보고 그리고, 동작은 actions의 함수만 부른다. DB, SDK, 네트워크를 직접 쓰지 않는다.
-- 새 라이브러리, 외부 이미지, 외부 글꼴을 추가하지 않는다.
-- 상태에 없는 데이터나 새 동작이 필요하면 코드를 지어내지 말고, 필요한 필드와 동작을 목록으로 정리해 나에게 알려준다.
-- docs/09_view_guide.md 4번의 제품 규칙(단정 금지, 근거 표시, 출처 배지 유지, inputAllowed 준수, 삭제 재확인)을 지킨다.
-- 바꾼 화면 상태마다 ui/SampleState.kt의 가짜 상태로 @Preview를 만든다.
-- 끝나면 ./gradlew testDebugUnitTest 를 실행해 통과를 확인하고 결과를 알려준다.
+준수 사항:
+- app/src/main/java/com/pleosjournal/ui/ 안의 파일만 변경한다. 그 외 코드, Gradle 설정, 매니페스트는 변경하지 않는다.
+- JournalScreen(state: JournalUiState, actions: JournalActions) 의 이름과 매개변수는 변경하지 않는다.
+- 화면은 state만으로 구성하고, 동작은 actions의 함수로만 요청한다. DB, SDK, 네트워크에 직접 접근하지 않는다.
+- docs/09_view_guide.md 3장의 요구사항(VR-01 ~ VR-31)을 준수한다.
+- 계약에 없는 데이터나 동작이 필요하면 코드를 임의로 만들지 말고, 필요한 필드와 동작을 목록으로 정리해 보고한다.
+- 변경한 화면 상태마다 ui/SampleState.kt의 표본 상태로 @Preview를 작성한다.
+- 작업 후 ./gradlew testDebugUnitTest 를 실행하고 결과를 보고한다.
 
-이번 작업: (여기에 하고 싶은 것을 쓴다)
+이번 작업: (작업 내용을 기술한다)
 ```
 
-요청 예:
+작업 기술 예:
 
-- "트립 카드를 접었다 펼 수 있게 해줘. 접힌 상태에는 날짜, 시간, 거리, 확인 안 한 질문 수만 보이게."
-- "장면 후보를 카드 안이 아니라 트립 종료 직후에 뜨는 한 장씩 넘기는 화면으로 바꿔줘."
-- "관측 구간 막대를 종류별 색으로 구분해줘. 색에 해석(비, 밤)을 담지는 마."
+- 트립 카드를 접고 펼 수 있게 한다. 접힌 상태에는 날짜, 시간, 거리, 미확인 질문 수만 표시한다.
+- 장면 후보를 트립 카드 내부가 아니라 한 건씩 넘기는 별도 화면으로 제시한다.
+- 관측 구간 막대를 종류별 색으로 구분한다. 색에 해석을 담지 않는다 (VR-10).

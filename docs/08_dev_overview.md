@@ -1,104 +1,172 @@
-# 08. 개발 개요 (요약본)
+# 08. 소프트웨어 아키텍처 설명서
 
-2026-11-14 기준. 코드를 읽지 않고도 "무엇이 어떻게 만들어져 있는지" 파악하기 위한 문서.
-상세는 `05_prototype_plan.md`(구조), `04_usecases.md`(유즈케이스), `06_open_questions.md`(미확인 사항).
+| 항목 | 내용 |
+|---|---|
+| 문서 ID | PJ-SWAD-08 |
+| 대상 | Pleos Journal (가제) Android 앱 |
+| 기준일 | 2026-11-14 |
+| 기준 구현 | 마일스톤 M0~M3, 단위 테스트 23건 |
+| 관련 문서 | `04_usecases.md` (요구사항 원문), `05_prototype_plan.md` (마일스톤), `06_open_questions.md` (미확인 사항), `09_view_guide.md` (View 계층 매뉴얼) |
 
-## 1. 한 줄 요약
+## 1. 목적과 범위
 
-차가 이동 중 관측한 사실(와이퍼, 창문, 전조등, 뒷좌석 등받이, 도어)을 구간으로 모으고,
-트립이 끝나면 그 사실을 근거로 질문을 건네고, 사용자가 확인하거나 음성 한마디로 답한 것만 저널에 남긴다.
+본 문서는 Pleos Journal 앱의 소프트웨어 구조, 계층 간 인터페이스, 설계 제약, 요구사항별 구현 현황을 정의한다.
+코드를 읽지 않고 시스템의 구성과 현재 상태를 파악하는 데 쓴다. 상세 알고리즘과 화면 디자인은 범위에 포함하지 않는다.
 
-핵심 원칙: **관측 사실 → 단서 제안(질문) → 사용자 확인 → 저장.** 앱은 "비가 왔다"고 단정하지 않는다.
+## 2. 시스템 개요
 
-## 2. 데이터 흐름
+Pleos Journal은 Pleos Connect(Android Automotive 기반) 위에서 동작하는 차량용 드라이브 저널 앱이다.
+이동 중 관측한 차량 상태를 구간으로 기록하고, 트립 종료 후 그 관측을 근거로 질문을 제시하며, 사용자가 확인하거나 음성으로 답한 내용만 저널에 남긴다.
 
-```
-신호 소스(REAL / REPLAY / DUMMY)
-   │  VehicleEvent (앱 내부 공통 이벤트)
-   ▼
-Recorder ─► TripDetector   트립 시작, 일시정지, 종료 추정 (UC-01)
-         ─► ClueExtractor  관측 사실 구간 (UC-03)
-         ─► SceneSuggester 질문형 장면 후보 (UC-12)
-   │
-   ▼
-Room(기기 로컬 DB) ─► JournalViewModel ─► JournalUiState ─► 화면(ui/)
-                              ▲                                │
-                              └──────── JournalActions ◄───────┘
-```
+처리 원칙은 다음 한 가지다.
 
-- 화면은 상태(`JournalUiState`)를 그리기만 하고, 사용자의 동작은 `JournalActions`로만 요청한다.
-- 주행 제한과 음성 동의 검사는 ViewModel이 한다. 화면이 버튼을 잘못 열어도 동작은 실행되지 않는다.
+> 관측 사실 → 단서 제안(질문) → 사용자 확인 → 저장
 
-## 3. 계층과 담당
+시스템은 관측에서 해석을 단정하지 않는다. 예를 들어 와이퍼 작동을 "비"로 기록하지 않는다.
+
+### 2.1 용어
+
+| 용어 | 정의 |
+|---|---|
+| 트립 | 한 번의 이동. 시작과 종료는 차량 신호로 추정한다 |
+| 관측 구간 | 특정 차량 상태가 지속된 시간 구간. 해석을 포함하지 않는다 |
+| 장면 후보 | 관측 구간을 근거로 생성한 질문. 사용자 확인 전에는 사실로 취급하지 않는다 |
+| 입력 출처 | 데이터가 들어온 경로. REAL(실제 SDK), REPLAY(시나리오 재생), DUMMY(가짜 구현) |
+| 주행 제한 | 플랫폼의 CarUxRestrictions가 요구하는 주의분산 제한 상태 |
+| View 계약 | View 계층과 나머지 계층 사이의 유일한 인터페이스 (`JournalUiState`, `JournalActions`) |
+
+## 3. 아키텍처
+
+### 3.1 구조 양식
+
+MVVM, 단방향 데이터 흐름을 따른다. 상태는 ViewModel에서 View로만 내려가고, 사용자의 동작은 View에서 ViewModel로만 올라간다.
+
+설계 목표: 기능의 추가와 제거, 화면 디자인 변경이 다른 계층의 수정 없이 가능해야 한다.
+
+### 3.2 계층 구성
 
 ```
 ui  ──►  presentation  ──►  domain / data / signal / speech / platform
 ```
 
-| 패키지 | 역할 | 담당 |
+| 계층 (패키지) | 책임 | 주요 구성요소 |
 |---|---|---|
-| `ui/` | 화면(Compose). 디자인, 문구, 화면 전환 | 빅터 |
-| `presentation/` | View 계약(`JournalUiState.kt`), ViewModel, Recorder | 상주 |
-| `domain/` | 순수 Kotlin 로직. 트립, 단서, 장면 후보, 게이트 규칙 | 상주 |
-| `data/` | Room DB, 프라이버시 설정 저장 | 상주 |
-| `signal/` | 신호 소스 인터페이스, CSV 재생 소스 | 상주 |
-| `speech/` | 음성 인식, 합성 인터페이스와 Fake | 상주 |
-| `platform/` | 주행 제한(CarUxRestrictions) 연동 | 상주 |
+| `ui` | 화면 표시와 화면 내 상호작용 | `JournalScreen`, `SampleState` |
+| `presentation` | 상태 조립, 동작 처리, 접근 제어, 입력 출처 선택 | `JournalUiState`, `JournalActions`, `JournalViewModel`, `Recorder` |
+| `domain` | 판정 규칙. 순수 Kotlin | `TripDetector`, `ClueExtractor`, `SceneSuggester`, `isInputAllowed` |
+| `data` | 로컬 영속화 | `JournalDb` (Room), `PrivacyStore` |
+| `signal` | 차량 신호 입력의 추상화 | `VehicleEvent`, `VehicleSignalSource`, `ReplaySource` |
+| `speech` | 음성 입출력의 추상화 | `SpeechToText`, `TextToSpeech`, `FakeStt`, `FakeTts` |
+| `platform` | 플랫폼 서비스 연동 | `DrivingGate` (CarUxRestrictions) |
 
-의존 방향은 `ArchitectureTest`가 import를 검사해 지킨다.
+### 3.3 의존 규칙
 
-## 4. 기능 현황
+| ID | 규칙 | 검증 |
+|---|---|---|
+| AR-01 | `ui`는 `presentation`과 `domain`의 모델만 참조한다. `data`, `signal`, `speech`, `platform`, Room, SDK를 참조하지 않는다 | `ArchitectureTest` |
+| AR-02 | `domain`은 Android, Room, SDK, `ui`, `presentation`을 참조하지 않는다 | `ArchitectureTest` |
+| AR-03 | SDK 타입(`ai.pleos`, `android.car`)은 `signal`, `speech`, `platform` 밖으로 노출하지 않는다 | `ArchitectureTest` |
+| AR-04 | 모든 외부 입력은 인터페이스 뒤에 둔다. 구현 선택은 `JournalViewModel` 한 곳에서 한다 | 코드 리뷰 |
+| AR-05 | 접근 제어(주행 제한, 음성 동의)는 `presentation`에서 수행한다. View의 표시 여부에 의존하지 않는다 | 코드 리뷰 |
 
-| UC | 기능 | 상태 | 입력 출처 |
+### 3.4 데이터 흐름
+
+```
+신호 소스 (REAL / REPLAY / DUMMY)
+   │  VehicleEvent
+   ▼
+Recorder ─► TripDetector    트립 시작, 일시정지, 종료 추정
+         ─► ClueExtractor   관측 구간 생성
+         ─► SceneSuggester  장면 후보 생성
+   │
+   ▼
+JournalDb (기기 로컬) ─► JournalViewModel ─► JournalUiState ─► ui
+                                ▲                              │
+                                └────── JournalActions ◄───────┘
+```
+
+모든 `VehicleEvent`는 발생 시각과 입력 출처를 포함한다. 도메인 로직은 이벤트 시각만 사용하며 시스템 시계를 읽지 않는다. 따라서 시나리오 재생 결과는 결정적이다.
+
+### 3.5 인터페이스
+
+| 인터페이스 | 제공 | 사용 | 내용 |
 |---|---|---|---|
-| UC-01 | 트립 자동 초안 | 동작 | REPLAY |
-| UC-03 | 관측 단서 기록 (와이퍼, 전조등, 창문, 뒷좌석 젖힘, 도어) | 동작 | REPLAY |
-| UC-11 | 저널 타임라인 (시간축 막대) | 동작. 지도 없음 | 저장 데이터 |
-| UC-12 | 장면 후보 제안, 확인, 거부 | 동작. 확인 되돌리기 없음 | 저장 데이터 |
-| UC-07b | 음성 회고 | 동작. 음성 인식은 Fake(시나리오 문장), 음성 합성은 소리 없음 | REPLAY |
-| UC-09 | 주행 제한 게이트 | 동작. 실제 CarUxRestrictions 사용 | REAL |
-| UC-10 | 트립 보정 | 병합, 삭제 동작. **분할 미구현** | 앱 내부 |
-| UC-18 | 프라이버시 | 일시정지, 음성 동의, 항목별 수집, 전체 삭제 동작. **최초 실행 동의 화면 없음** | 앱 내부 |
-| M0 | Vehicle SDK 좌석 착석 조회와 콜백 | 동작(확인용 화면 `SeatProbeActivity`) | REAL |
-| P2, P3 | UC-02, 04, 06, 08, 13, 14, 15, 17 | 미구현 | |
+| View 계약 | `presentation` | `ui` | `JournalUiState`(화면 상태), `JournalActions`(동작). 상세는 `09_view_guide.md` |
+| `VehicleSignalSource` | `signal` | `presentation` | `events(): Flow<VehicleEvent>`, `source` |
+| `SpeechToText` | `speech` | `presentation` | `listen(): String?`, `source` |
+| `TextToSpeech` | `speech` | `presentation` | `speak(text)`, `source` |
+| `JournalDao` | `data` | `presentation` | 트립, 관측 구간, 장면 후보의 조회와 변경 |
+| 시나리오 CSV | `scenarios/` | `ReplaySource` | `t_ms,signal,target,value`. 형식은 `05_prototype_plan.md` |
 
-"실제로 되는 것과 더미는?"에 대한 답:
+## 4. 설계 제약
 
-- **REAL**: 주행 제한 상태(CarUxRestrictions), Vehicle SDK 좌석 착석 읽기(확인 화면에서만).
-- **REPLAY**: 차량 신호 전체(시나리오 CSV), 음성 인식 결과.
-- **없음**: 음성 합성 소리, 위치, 지도.
-- 화면의 배지(`REPLAY`, `STT REPLAY`)가 이 구분을 그대로 보여준다.
+| ID | 제약 | 근거 |
+|---|---|---|
+| DC-01 | 외부 API를 사용하지 않는다 (날씨, LLM, 외부 지도 타일, 자체 서버) | 팀 결정 |
+| DC-02 | 관측 사실과 해석을 분리한다. 해석은 질문으로만 제시한다 | 오인식 가능성 (와셔액, 터널, 오토라이트 등) |
+| DC-03 | 입력, 편집, 회고 UI는 주행 제한이 없을 때만 연다. 상태를 알 수 없으면 닫는다 | 운전자 주의분산 |
+| DC-04 | 트립 판정 결과를 안전 판단이나 주행 제한 해제 근거로 쓰지 않는다 | 트립 판정은 추정값 |
+| DC-05 | 데이터는 기기 로컬에만 저장한다 | 프라이버시 |
+| DC-06 | 문서와 UI에 "완전 온디바이스"라고 표기하지 않는다. 표현은 "외부 API를 직접 사용하지 않음" | STT/TTS의 서버 경유 가능성 미확인 |
+| DC-07 | Pleos SDK의 식별자는 공식 문서나 공식 샘플에서 확인한 것만 사용한다 | 추측 구현 방지 |
+| DC-08 | 화면에 입력 출처(REAL / REPLAY / DUMMY)를 표시한다 | 실제 동작과 모의 동작의 구분 |
+| DC-09 | minSdk 28 이상, Gradle 8.0 이상, Kotlin | 공모전 요구사항 |
 
-## 5. 실행 방법
+## 5. 요구사항 구현 현황
 
-1. Android Studio에서 Pleos Connect Emulator 2.1.0(API 34, Automotive)을 Cold boot로 실행.
-2. `./gradlew installDebug`
-3. 앱에서 "재생: 제천 당일치기"(트립 1개, 단서 6개, 장면 후보 4개) 또는 "재생: 편의점 경유"(트립 2개로 오판 → 병합 시연).
-4. 차량 신호와 기어 변경: `adb forward tcp:8088 tcp:8088` 후 http://127.0.0.1:8088/ 의 Emulation Controls.
+요구사항 원문은 `04_usecases.md`를 따른다.
 
-검증: `./gradlew testDebugUnitTest` (단위 테스트 23개. 트립 판정, 단서, 장면 후보, 보정, 계층 규칙).
+| ID | 요구사항 | 구현 구성요소 | 검증 | 입력 출처 | 상태 |
+|---|---|---|---|---|---|
+| UC-01 | 트립 자동 초안 | `TripDetector`, `Recorder` | `TripDetectorTest` 8건 | REPLAY | 구현 |
+| UC-03 | 관측 단서 기록 | `ClueExtractor` | `ClueExtractorTest` 5건 | REPLAY | 구현 |
+| UC-11 | 저널 타임라인 | `JournalScreen` | 에뮬레이터 확인 | 저장 데이터 | 구현 (지도 제외) |
+| UC-12 | 장면 후보 제안, 확인, 거부 | `SceneSuggester`, `JournalViewModel` | `SceneSuggesterTest` 3건 | 저장 데이터 | 구현 (확인 취소 제외) |
+| UC-07b | 음성 회고 | `SpeechToText`, `JournalViewModel` | 에뮬레이터 확인 | REPLAY (Fake STT) | 부분 구현 |
+| UC-09 | 주행 제한 게이트 | `DrivingGate`, `isInputAllowed` | 판정 규칙 테스트 1건, 에뮬레이터 확인 | REAL | 구현 |
+| UC-10 | 트립 보정 | `mergeTrips`, `deleteTrip` | `TripCorrectionTest` 2건, 에뮬레이터 확인 | 앱 내부 | 부분 구현 (분할 제외) |
+| UC-18 | 프라이버시 제어 | `PrivacyStore`, `Recorder` | `TripCorrectionTest` 1건, 에뮬레이터 확인 | 앱 내부 | 부분 구현 (최초 실행 동의 제외) |
+| M0 | Vehicle SDK 신호 조회와 변경 콜백 | `SeatProbeActivity` | 에뮬레이터 확인 | REAL | 구현 (확인용 화면) |
+| UC-02, 04, 06, 13, 14 | P2 | 없음 | | | 미구현 |
+| UC-08, 15, 17 | P3 | 없음 | | | 미구현 |
 
-## 6. 플랫폼에서 확인한 사실 (기획에 영향)
+### 5.1 입력 출처별 구분
 
-- **주행 중(기어 D)에는 플랫폼이 앱 화면 전체를 가린다.** "주행 중에는 사용할 수 없습니다" 화면이 뜬다.
-  주행 중 화면을 쓰는 기능(UC-13의 화면, UC-06의 확인 표시)은 현재 불가능하다. 가능 조건은 미확인(open question 19).
-- **Vehicle SDK 문서에는 속도, 기어, 시동 신호가 없다.** 트립은 운전석 착석, 운전석 도어, 트립 거리로 추정하므로 오판이 생긴다. 그래서 UC-10(보정)이 P1이다.
-- **STT, TTS, FusedLocation은 문서상 준비 중.** 인터페이스만 만들고 Fake로 시연한다.
-- **에뮬레이터에서 운전석 착석 값이 반대로 온다**(Occupied일 때 false). 원인 미확인(open question 17). 실제 신호 연결 전 해결 필요.
+| 출처 | 해당 항목 |
+|---|---|
+| REAL | 주행 제한 상태 (CarUxRestrictions), 좌석 착석 신호 조회 (확인용 화면 한정) |
+| REPLAY | 차량 신호 전체 (시나리오 CSV), 음성 인식 결과 |
+| 미제공 | 음성 합성 출력, 위치, 지도 |
 
-## 7. 알려진 한계
+## 6. 플랫폼 확인 사항
 
-- 트립 판정 임계값(일시정지 5분, 종료 확정 3분, 병합 후보 30분)과 단서 최소 지속 시간은 가정값이다.
-- 기록 일시정지 중의 이동은 통째로 빠진다.
-- 트립이 끝나면 켜져 있던 신호 상태를 잊는다. 짧은 정차 뒤 다음 트립에서 단서가 누락될 수 있다.
-- DB 구조가 바뀌면 기존 기록을 지운다(개발 단계 설정).
-- 실제 신호 소스(`PleosVehicleSource`)는 아직 없다. M4 작업.
+에뮬레이터(Pleos Connect v2.1.0, API 34)에서 확인한 사실이다.
 
-## 8. 확정 제약 (바꾸려면 팀 합의)
+| ID | 확인 사항 | 영향 |
+|---|---|---|
+| PF-01 | 주행 제한 상태(기어 D)에서는 플랫폼이 앱 화면 전체를 "주행 중에는 사용할 수 없습니다" 화면으로 가린다 | 주행 중 화면을 쓰는 기능(UC-13, UC-06의 확인 표시)은 현재 불가. 가능 조건은 미확인 (open question 19) |
+| PF-02 | Vehicle SDK 공식 문서에 속도, 기어, 시동 신호가 없다 | 트립은 착석, 도어, 거리로 추정하며 오판이 발생한다. UC-10이 필수 |
+| PF-03 | STT, TTS, FusedLocation SDK는 문서상 준비 중이다 | 인터페이스만 구현하고 Fake로 대체 |
+| PF-04 | 운전석 착석 값이 가상 콘솔의 표시와 반대로 수신된다 | 원인 미확인 (open question 17). 실제 신호 연결의 선행 과제 |
+| PF-05 | 주행 제한 전환은 가상 콘솔의 기어 선택으로 수행한다. 문서의 adb 명령은 동작하지 않는다 | 시험 절차 |
 
-1. 외부 API 사용 금지 (날씨, LLM, 외부 지도, 자체 서버).
-2. 관측 사실과 해석을 분리한다. 단정하지 않고 질문한다.
-3. 주행 중 화면 입력 금지. 상태를 모르면 닫는다.
-4. 트립 종료 추정을 안전 판단에 쓰지 않는다.
-5. 데이터는 기기 로컬 저장.
-6. "완전 온디바이스"라고 쓰지 않는다. 표현은 "외부 API를 직접 사용하지 않음".
+## 7. 알려진 제한
+
+| ID | 내용 |
+|---|---|
+| LM-01 | 트립 판정 임계값(일시정지 5분, 종료 확정 3분, 병합 후보 30분)과 관측 구간 최소 지속 시간은 가정값이다 |
+| LM-02 | 기록 일시정지 중의 이동은 기록되지 않는다 |
+| LM-03 | 트립 종료 시 진행 중이던 신호 상태를 초기화한다. 짧은 정차 직후의 트립에서 관측 구간이 누락될 수 있다 |
+| LM-04 | DB 스키마 변경 시 기존 기록을 삭제한다 (개발 단계 설정) |
+| LM-05 | 실제 차량 신호 소스(`PleosVehicleSource`)가 없다. 실제 신호로 트립을 기록할 수 없다 |
+| LM-06 | 트립 분할을 위한 거리 표본을 저장하지 않는다 |
+
+## 8. 빌드와 시험
+
+| 항목 | 내용 |
+|---|---|
+| 빌드 도구 | Gradle 9.5.0, AGP 9.3.1, compileSdk 36, minSdk 28, targetSdk 35 |
+| 단위 시험 | `./gradlew testDebugUnitTest` |
+| 설치 | `./gradlew installDebug` (Pleos Connect Emulator 2.1.0, Cold boot) |
+| 시나리오 | `jecheon_daytrip.csv` (트립 1, 관측 구간 6, 장면 후보 4), `errand_short_stop.csv` (트립 2로 오판 후 병합) |
+| 신호 조작 | `adb forward tcp:8088 tcp:8088` 후 http://127.0.0.1:8088/ 의 Emulation Controls |

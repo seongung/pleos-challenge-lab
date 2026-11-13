@@ -25,8 +25,8 @@ Pleos Connect(Android Automotive 기반) 위에서 동작하는 차량용 Androi
 | `docs/05_prototype_plan.md` | 아키텍처, 마일스톤, 시나리오 재생(SIL) 설계 | 구현 시작 전 |
 | `docs/06_open_questions.md` | 미확인 사항, 해야 할 확인 작업 | 막혔을 때 |
 | `docs/07_decision_log.md` | 지금까지의 결정과 이유 | 방향을 바꾸고 싶을 때 |
-| `docs/08_dev_overview.md` | 개발 개요 요약 (데이터 흐름, 기능 현황, 실제와 더미 구분) | 전체 파악, 기획서 작성 시 |
-| `docs/09_view_guide.md` | 화면(View) 작업 범위, 계약, 규칙, AI 지시문 | **`ui/` 작업 전 필수** |
+| `docs/08_dev_overview.md` | 소프트웨어 아키텍처 설명서 (계층, 의존 규칙, 설계 제약, 요구사항 구현 현황) | 전체 파악, 기획서 작성 시 |
+| `docs/09_view_guide.md` | View 계층 개발 매뉴얼 (작업 범위, View 계약, 요구사항 VR-xx, 절차, AI 지시문) | **`ui/` 작업 전 필수** |
 | `docs/reference/` | 원본 자료 (Notion Charter, Ideas, 외부 피드백, UC v1) | 배경이 필요할 때만 |
 
 ## 4. 확정된 제약 (바꾸려면 반드시 사용자에게 먼저 확인)
@@ -87,9 +87,9 @@ LocationSource (Pleos/Replay)
 
 - M0~M3 구현 완료, MVVM 구조로 재배치. 에뮬레이터(Pleos Connect v2.1.0)에서 시나리오 재생 기반으로 P1 흐름 동작. 트립 분할(UC-10 일부)과 최초 실행 동의 화면(UC-18 일부)은 미구현.
 - 입력은 아직 전부 REPLAY/Fake다. 실제 Vehicle SDK 연결은 M0 확인 화면(`SeatProbeActivity`)뿐이며, 착석 값 반전 등 미확인 사항은 `docs/06_open_questions.md` 16~18번.
-- 역할: 상주는 아키텍처와 View 외 전부, 빅터는 View(`ui/`), 기능 취사선택, 기획서.
+- 역할: 아키텍처 담당은 View 외 전부, View 담당은 `ui/`, 기능 취사선택, 기획서.
 - 1차 서류 접수 마감: **2026-11-15 23:59**. 목표는 데모 영상 또는 데모 APK까지 제출(가산점).
 - 2차 오프라인 PT: **2026-12-03 ~ 12-04**. PT 전까지 실제 동작하는 앱 필수.
-- 다음 작업: 빅터의 View 디자인과 기능 취사선택 → 데모 영상 녹화 → M4(실제 PleosVehicleSource 연결 확대).
+- 다음 작업: View 디자인과 기능 취사선택 → 데모 영상 녹화 → M4(실제 PleosVehicleSource 연결 확대).
 - 코드 저장소: GitHub private `pleos-challenge-lab` (임시 이름, 변경 예정).
 - 에뮬레이터 실행, 신호 변경 방법: Virtual Console(`adb forward tcp:8088 tcp:8088` 후 http://127.0.0.1:8088/).
