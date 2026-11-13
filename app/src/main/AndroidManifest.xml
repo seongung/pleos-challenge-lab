@@ -4,6 +4,11 @@
     <!-- 좌석 상태 조회. 사용하는 퍼미션만 선언한다(마켓 심사 기준).
          출처: https://document.pleos.ai/docs/pleos-only/connect-sdk-pleos/Vehicle/vehicle-permission -->
     <uses-permission android:name="pleos.car.permission.CAR_SEATS" />
+    <!-- 도어, 트립 거리, 창문과 와이퍼, 전조등 조회. 각 메서드 문서의 @RequiresPermission 값이다. -->
+    <uses-permission android:name="pleos.car.permission.CAR_DOORS" />
+    <uses-permission android:name="pleos.car.permission.CAR_DRIVE" />
+    <uses-permission android:name="pleos.car.permission.CAR_WINDOWS" />
+    <uses-permission android:name="pleos.car.permission.CAR_LIGHTS" />
 
     <application
         android:allowBackup="false"

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
@@ -24,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,10 +76,19 @@ fun JournalScreen(state: JournalUiState, actions: JournalActions) {
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         for (s in state.scenarios) Button(onClick = { actions.replay(s.file) }) { Text("재생: ${s.title}") }
+                        if (state.recordingReal) {
+                            OutlinedButton(onClick = actions::stopRecording) { Text("실제 신호 기록 중지") }
+                        } else {
+                            Button(onClick = actions::recordReal) { Text("실제 신호 기록") }
+                        }
                         OutlinedButton(onClick = { showSettings = !showSettings }) { Text(if (showSettings) "타임라인" else "프라이버시 설정") }
                     }
                     Text(state.status, style = MaterialTheme.typography.bodyMedium)
-                    if (showSettings) PrivacyScreen(state.privacy, state.inputAllowed, actions) else Timeline(state, actions)
+                    when {
+                        state.needsOnboarding -> Onboarding(state.inputAllowed, actions)
+                        showSettings -> PrivacyScreen(state.privacy, state.inputAllowed, actions)
+                        else -> Timeline(state, actions)
+                    }
                 }
             }
         }
@@ -87,13 +98,40 @@ fun JournalScreen(state: JournalUiState, actions: JournalActions) {
 @Composable
 private fun Timeline(state: JournalUiState, actions: JournalActions) {
     if (state.trips.isEmpty()) Text("아직 기록된 트립이 없습니다.")
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        items(state.trips, key = { it.id }) { TripCard(it, state.inputAllowed, state.voiceAllowed, actions) }
+    val listState = rememberLazyListState()
+    // 새 트립이 맨 위에 생기면 그쪽으로 스크롤한다. LaunchedEffect는 key(맨 위 트립 id)가 바뀔 때만 다시 실행된다.
+    LaunchedEffect(state.trips.firstOrNull()?.id) { listState.animateScrollToItem(0) }
+    LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        items(state.trips, key = { it.id }) { TripCard(it, state.inputAllowed, state.voiceAllowed, state.voiceBusy, actions) }
+    }
+}
+
+/** UC-18 최초 실행 동의. 무엇을 기록하는지 알리고, 동의한 뒤에만 기록을 시작한다. */
+@Composable
+private fun Onboarding(allowed: Boolean, actions: JournalActions) {
+    var voice by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("시작하기 전에", style = MaterialTheme.typography.titleLarge)
+        Text("이 앱은 이동 중 아래 차량 상태를 관측해 구간으로 기록합니다.")
+        Text("운전석 착석과 도어, 트립 거리, 와이퍼, 전조등, 창문, 뒷좌석 등받이")
+        Text("기록은 이 기기 안에만 저장됩니다. 앱이 외부 API를 직접 사용하지 않습니다.")
+        Text("관측한 내용은 사실로만 남기고, 해석은 질문으로 여쭤본 뒤 확인하신 것만 저장합니다.")
+        Text("항목별 수집 끄기, 기록 일시정지, 전체 삭제는 프라이버시 설정에서 언제든 할 수 있습니다.")
+        Toggle(
+            "음성 기록 동의 (선택)",
+            "동승자를 포함해 차 안의 음성을 글자로 바꿔 저장하는 데 동의합니다. 나중에 바꿀 수 있습니다.",
+            voice, allowed,
+        ) { voice = it }
+        if (allowed) {
+            Button(onClick = { actions.completeOnboarding(voice) }) { Text("동의하고 시작") }
+        } else {
+            Text("주행 제한 상태에서는 동의할 수 없습니다.", color = MaterialTheme.colorScheme.error)
+        }
     }
 }
 
 @Composable
-private fun TripCard(trip: TripUi, allowed: Boolean, voiceAllowed: Boolean, actions: JournalActions) {
+private fun TripCard(trip: TripUi, allowed: Boolean, voiceAllowed: Boolean, voiceBusy: Boolean, actions: JournalActions) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -119,16 +157,27 @@ private fun TripCard(trip: TripUi, allowed: Boolean, voiceAllowed: Boolean, acti
                 }
             }
 
+            // UC-10: 정차 지점마다 트립을 나눌 수 있다. 병합으로 되돌릴 수 있어 재확인은 하지 않는다.
+            for (stop in trip.stops) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("정차 ${hm(stop.startMs)}~${hm(stop.endMs)}")
+                    if (allowed) OutlinedButton(onClick = { actions.splitAtStop(trip.id, stop.id) }) { Text("여기서 트립 나누기") }
+                }
+            }
+
             HorizontalDivider(Modifier.padding(vertical = 6.dp))
             Text("장면 후보와 회고", style = MaterialTheme.typography.titleMedium)
             if (!allowed) Text("주행 제한 상태에서는 확인과 회고 입력이 닫힙니다.", color = MaterialTheme.colorScheme.error)
-            for (scene in trip.scenes) SceneRow(scene, allowed, voiceAllowed, actions)
+            for (scene in trip.scenes) SceneRow(scene, allowed, voiceAllowed, voiceBusy, actions)
+            if (allowed && trip.hiddenSceneCount > 0) {
+                OutlinedButton(onClick = { actions.restoreHiddenScenes(trip.id) }) { Text("숨긴 후보 ${trip.hiddenSceneCount}개 다시 보기") }
+            }
 
             Column(Modifier.padding(top = 6.dp)) {
                 Text(trip.memoQuestion, style = MaterialTheme.typography.titleMedium)
                 trip.memo?.let { Answer("답변: $it", trip.memoSource) }
                 if (voiceAllowed) {
-                    VoiceButton(if (trip.memo == null) "음성으로 기록" else "다시 말하기", trip.memoListening) { actions.recordMemoByVoice(trip.id) }
+                    VoiceButton(if (trip.memo == null) "음성으로 기록" else "다시 말하기", trip.memoListening, voiceBusy) { actions.recordMemoByVoice(trip.id) }
                 } else if (allowed) {
                     Text("음성 기록은 프라이버시 설정에서 동의한 뒤 사용할 수 있습니다.")
                 }
@@ -138,19 +187,22 @@ private fun TripCard(trip: TripUi, allowed: Boolean, voiceAllowed: Boolean, acti
 }
 
 @Composable
-private fun SceneRow(scene: SceneUi, allowed: Boolean, voiceAllowed: Boolean, actions: JournalActions) {
+private fun SceneRow(scene: SceneUi, allowed: Boolean, voiceAllowed: Boolean, voiceBusy: Boolean, actions: JournalActions) {
     Column(Modifier.padding(top = 6.dp)) {
         Text(scene.question, style = MaterialTheme.typography.titleMedium)
         // 근거가 되는 관측 사실을 질문과 항상 함께 보여준다.
         Text("근거: " + scene.evidence.joinToString(", ", transform = ::spanText))
         if (scene.confirmed) {
-            Answer(if (scene.answer == null) "확인됨: 네" else "답변: ${scene.answer}", scene.answerSource)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Answer(if (scene.answer == null) "확인됨: 네" else "답변: ${scene.answer}", scene.answerSource)
+                if (allowed) OutlinedButton(onClick = { actions.resetScene(scene.id) }) { Text("되돌리기") }
+            }
         } else if (allowed) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (!scene.isOpenQuestion) {
                     Button(onClick = { actions.confirmScene(scene.id) }) { Text("맞아요") }
                 } else if (voiceAllowed) {
-                    VoiceButton("음성으로 답하기", scene.listening) { actions.answerSceneByVoice(scene.id) }
+                    VoiceButton("음성으로 답하기", scene.listening, voiceBusy) { actions.answerSceneByVoice(scene.id) }
                 }
                 OutlinedButton(onClick = { actions.denyScene(scene.id) }) { Text(if (scene.isOpenQuestion) "해당 없음" else "아니에요") }
             }
@@ -204,8 +256,9 @@ private fun ConfirmButton(text: String, confirmText: String, key: Any, onConfirm
 }
 
 @Composable
-private fun VoiceButton(text: String, listening: Boolean, onClick: () -> Unit) {
-    Button(enabled = !listening, onClick = onClick) { Text(if (listening) "듣는 중…" else text) }
+private fun VoiceButton(text: String, listening: Boolean, busy: Boolean, onClick: () -> Unit) {
+    // 듣는 동안에는 모든 음성 버튼을 잠그고, 듣고 있는 질문의 버튼만 "듣는 중"으로 바꾼다.
+    Button(enabled = !busy, onClick = onClick) { Text(if (listening) "듣는 중…" else text) }
 }
 
 @Composable

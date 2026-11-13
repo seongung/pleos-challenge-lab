@@ -8,6 +8,7 @@ import com.pleosjournal.presentation.PrivacyUi
 import com.pleosjournal.presentation.SceneUi
 import com.pleosjournal.presentation.ScenarioUi
 import com.pleosjournal.presentation.SpanUi
+import com.pleosjournal.presentation.StopUi
 import com.pleosjournal.presentation.TripUi
 
 /** 미리보기와 화면 작업용 가짜 상태. 값은 모두 가상이다. 화면 담당자가 경우를 늘려 가며 쓴다. */
@@ -38,6 +39,7 @@ val sampleState = JournalUiState(
             ),
             memoQuestion = "이번 이동에서 기억에 남는 순간은?",
             memo = "오늘 도담삼봉에서 먹은 점심이 제일 기억에 남아.", memoSource = "REPLAY", memoListening = false,
+            hiddenSceneCount = 1, stops = listOf(StopUi(1, T0 + 100 * MIN, T0 + 110 * MIN)),
             canMergeWithPrevious = true, mergeCandidateGapMin = 6,
         ),
         TripUi(
@@ -53,6 +55,12 @@ val sampleState = JournalUiState(
 /** 아무 일도 하지 않는 동작. 미리보기용. */
 object NoActions : JournalActions {
     override fun replay(file: String) = Unit
+    override fun recordReal() = Unit
+    override fun stopRecording() = Unit
+    override fun resetScene(sceneId: Long) = Unit
+    override fun restoreHiddenScenes(tripId: Long) = Unit
+    override fun splitAtStop(tripId: Long, stopId: Long) = Unit
+    override fun completeOnboarding(voiceConsent: Boolean) = Unit
     override fun confirmScene(sceneId: Long) = Unit
     override fun denyScene(sceneId: Long) = Unit
     override fun answerSceneByVoice(sceneId: Long) = Unit

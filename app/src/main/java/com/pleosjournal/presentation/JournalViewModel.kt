@@ -9,6 +9,7 @@ import com.pleosjournal.data.Privacy
 import com.pleosjournal.data.PrivacyStore
 import com.pleosjournal.data.SceneEntity
 import com.pleosjournal.data.SpanEntity
+import com.pleosjournal.data.StopEntity
 import com.pleosjournal.data.TripEntity
 import com.pleosjournal.domain.ClueKind
 import com.pleosjournal.domain.isMergeCandidate
@@ -16,6 +17,8 @@ import com.pleosjournal.domain.isOpenQuestion
 import com.pleosjournal.domain.question
 import com.pleosjournal.platform.DrivingGate
 import com.pleosjournal.signal.Signal
+import com.pleosjournal.signal.Source
+import com.pleosjournal.signal.pleos.PleosVehicleSource
 import com.pleosjournal.signal.replay.ReplaySource
 import com.pleosjournal.signal.replay.parseScenario
 import com.pleosjournal.speech.FakeStt
@@ -56,27 +59,39 @@ class JournalViewModel(app: Application) : AndroidViewModel(app), JournalActions
 
     private var replayJob: Job? = null
     private val listening = MutableStateFlow<String?>(null) // 지금 듣고 있는 질문의 키
+    private val activeSource = MutableStateFlow<Source?>(null) // 지금 기록 중인 소스. 없으면 null
 
     // ----- 상태 -----
-    private val records = combine(dao.trips(), dao.spans(), dao.scenes(), ::Triple)
+    private class Records(val trips: List<TripEntity>, val spans: List<SpanEntity>, val scenes: List<SceneEntity>, val stops: List<StopEntity>)
+    private val records = combine(dao.trips(), dao.spans(), dao.scenes(), dao.stops(), ::Records)
+    private val session = combine(listening, activeSource, ::Pair)
 
     val state: StateFlow<JournalUiState> =
-        combine(records, recorder.status, gate.inputAllowed, privacy.state, listening) { (trips, spans, scenes), status, allowed, p, key ->
+        combine(records, recorder.status, gate.inputAllowed, privacy.state, session) { r, status, allowed, p, (key, active) ->
             JournalUiState(
+                inputSource = (active ?: Source.REPLAY).name,
                 sttSource = stt.source.name,
                 inputAllowed = allowed,
                 voiceAllowed = allowed && p.voiceConsent,
+                voiceBusy = key != null,
+                needsOnboarding = !p.onboarded,
+                recordingReal = active == Source.REAL,
                 status = status,
                 scenarios = scenarios,
-                trips = trips.mapIndexed { i, trip ->
+                trips = r.trips.mapIndexed { i, trip ->
                     // trips는 최신순이므로 목록의 다음 항목이 시간상 직전 트립이다.
-                    tripUi(trip, trips.getOrNull(i + 1), spans.filter { it.tripId == trip.id }, scenes.filter { it.tripId == trip.id }, key)
+                    tripUi(
+                        trip, r.trips.getOrNull(i + 1), r.spans.filter { it.tripId == trip.id },
+                        r.scenes.filter { it.tripId == trip.id }, r.stops.filter { it.tripId == trip.id }, key,
+                    )
                 },
                 privacy = PrivacyUi(p.paused, p.voiceConsent, ClueKind.entries.map { KindToggleUi(it, it.name !in p.disabledKinds) }),
             )
         }.stateIn(viewModelScope, SharingStarted.Eagerly, JournalUiState(scenarios = scenarios))
 
-    private fun tripUi(trip: TripEntity, prev: TripEntity?, spans: List<SpanEntity>, scenes: List<SceneEntity>, key: String?): TripUi {
+    private fun tripUi(
+        trip: TripEntity, prev: TripEntity?, spans: List<SpanEntity>, scenes: List<SceneEntity>, stops: List<StopEntity>, key: String?,
+    ): TripUi {
         val length = (trip.endMs - trip.startMs).coerceAtLeast(1).toFloat()
         fun spanUi(s: SpanEntity) = SpanUi(
             ClueKind.valueOf(s.kind), s.target, s.startMs, s.endMs,
@@ -94,6 +109,8 @@ class JournalViewModel(app: Application) : AndroidViewModel(app), JournalActions
                     listening = key == "scene-${scene.id}",
                 )
             },
+            hiddenSceneCount = scenes.count { it.status == SceneEntity.DENIED },
+            stops = stops.map { StopUi(it.id, it.startMs, it.endMs) },
             memoQuestion = MEMO_QUESTION, memo = trip.memo, memoSource = trip.memoSource, memoListening = key == "trip-${trip.id}",
             canMergeWithPrevious = prev != null,
             mergeCandidateGapMin = prev?.takeIf { isMergeCandidate(it.endMs, trip.startMs) }?.let { (trip.startMs - it.endMs) / 60_000 },
@@ -101,13 +118,35 @@ class JournalViewModel(app: Application) : AndroidViewModel(app), JournalActions
     }
 
     // ----- 동작 -----
-    override fun replay(file: String) {
-        replayJob?.cancel() // 재생 중 다시 누르면 처음부터
-        replayJob = viewModelScope.launch { recorder.record(ReplaySource(csv(file), REPLAY_SPEED)) }
+    override fun replay(file: String) = start(Source.REPLAY) { recorder.record(ReplaySource(csv(file), REPLAY_SPEED)) }
+
+    // 실제 신호는 끝이 없으므로 주기적으로 시간 경과를 알려 트립 종료를 판정하게 한다.
+    override fun recordReal() = start(Source.REAL) { recorder.record(PleosVehicleSource(getApplication()), tickMs = REAL_TICK_MS) }
+
+    override fun stopRecording() {
+        replayJob?.cancel()
+    }
+
+    /** 기록은 한 번에 하나만 돈다. 새로 시작하면 이전 것을 멈춘다. */
+    private fun start(source: Source, block: suspend () -> Unit) {
+        replayJob?.cancel()
+        replayJob = viewModelScope.launch {
+            activeSource.value = source
+            try {
+                block()
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                recorder.status.value = "$source 기록 실패: ${e.message}" // 예: Vehicle Service가 없는 기기
+            } finally {
+                if (activeSource.value == source) activeSource.value = null
+            }
+        }
     }
 
     override fun confirmScene(sceneId: Long) = edit { dao.answerScene(sceneId, SceneEntity.CONFIRMED) }
     override fun denyScene(sceneId: Long) = edit { dao.answerScene(sceneId, SceneEntity.DENIED) }
+    override fun resetScene(sceneId: Long) = edit { dao.answerScene(sceneId, SceneEntity.PENDING) }
+    override fun restoreHiddenScenes(tripId: Long) = edit { dao.restoreDeniedScenes(tripId) }
 
     override fun answerSceneByVoice(sceneId: Long) {
         val scene = state.value.trips.flatMap { it.scenes }.firstOrNull { it.id == sceneId } ?: return
@@ -122,9 +161,11 @@ class JournalViewModel(app: Application) : AndroidViewModel(app), JournalActions
         edit { dao.mergeTrips(keepId = prev.id, dropId = tripId) }
     }
 
+    override fun splitAtStop(tripId: Long, stopId: Long) = edit { dao.splitTrip(tripId, stopId) }
     override fun deleteTrip(tripId: Long) = edit { dao.deleteTrip(tripId) }
     override fun deleteAll() = edit { dao.deleteAll() }
 
+    override fun completeOnboarding(voiceConsent: Boolean) = setPrivacy { it.copy(onboarded = true, voiceConsent = voiceConsent) }
     override fun setPaused(paused: Boolean) = setPrivacy { it.copy(paused = paused) }
     override fun setVoiceConsent(consent: Boolean) = setPrivacy { it.copy(voiceConsent = consent) }
     override fun setKindEnabled(kind: ClueKind, enabled: Boolean) =
@@ -162,6 +203,7 @@ class JournalViewModel(app: Application) : AndroidViewModel(app), JournalActions
 
     private companion object {
         const val REPLAY_SPEED = 600 // 2시간 40분 시나리오가 16초
+        const val REAL_TICK_MS = 30_000L
         const val SPEECH_SCENARIO = "jecheon_daytrip.csv"
         const val MEMO_QUESTION = "이번 이동에서 기억에 남는 순간은?"
         val SCENARIO_TITLES = mapOf("jecheon_daytrip.csv" to "제천 당일치기", "errand_short_stop.csv" to "편의점 경유")

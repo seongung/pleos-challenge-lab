@@ -3,15 +3,36 @@ package com.pleosjournal.domain
 import com.pleosjournal.signal.Signal
 import com.pleosjournal.signal.VehicleEvent
 
-data class Trip(val startMs: Long, val endMs: Long, val distanceKm: Double)
+/** 트립 안의 정차 구간. [kmAtStop]은 트립 시작부터 이 정차까지 달린 거리. 트립 분할(UC-10)의 기준점이 된다. */
+data class Stop(val startMs: Long, val endMs: Long, val kmAtStop: Double)
+
+data class Trip(val startMs: Long, val endMs: Long, val distanceKm: Double, val stops: List<Stop> = emptyList())
 
 /** 이 간격 안에 다음 트립이 시작됐으면 "병합 후보"로 표시한다(UC-10). 자동 병합은 하지 않는다. 튜닝 대상. */
 const val MERGE_GAP_MS = 30 * 60_000L
 
 fun isMergeCandidate(prevEndMs: Long, nextStartMs: Long) = nextStartMs - prevEndMs in 0..MERGE_GAP_MS
 
-/** 두 트립을 하나로 합친 결과(UC-10). 사이의 정차 시간은 트립에 포함된다. */
-fun merge(a: Trip, b: Trip) = Trip(minOf(a.startMs, b.startMs), maxOf(a.endMs, b.endMs), a.distanceKm + b.distanceKm)
+/** 일시정지 뒤 다시 움직였을 때, 첫 거리 증가가 이 값 이하면 "실제로 서 있었다"고 보고 정차로 기록한다. 튜닝 대상. */
+const val STOP_MAX_DELTA_KM = 0.5
+
+/** 두 트립을 하나로 합친 결과(UC-10). 두 트립 사이의 공백은 정차로 남아, 나중에 그 지점에서 다시 나눌 수 있다. */
+fun merge(a: Trip, b: Trip): Trip {
+    val (first, second) = if (a.startMs <= b.startMs) a to b else b to a
+    return Trip(
+        first.startMs, maxOf(first.endMs, second.endMs), first.distanceKm + second.distanceKm,
+        first.stops + Stop(first.endMs, second.startMs, first.distanceKm) +
+            second.stops.map { it.copy(kmAtStop = it.kmAtStop + first.distanceKm) },
+    )
+}
+
+/** 트립을 정차 지점에서 둘로 나눈다(UC-10). 정차 시간은 어느 쪽에도 넣지 않는다. [merge]의 역연산이다. */
+fun split(trip: Trip, at: Stop): Pair<Trip, Trip> =
+    Trip(trip.startMs, at.startMs, at.kmAtStop, trip.stops.filter { it.endMs <= at.startMs }) to
+        Trip(
+            at.endMs, trip.endMs, trip.distanceKm - at.kmAtStop,
+            trip.stops.filter { it.startMs >= at.endMs }.map { it.copy(kmAtStop = it.kmAtStop - at.kmAtStop) },
+        )
 
 /**
  * UC-01 트립 자동 초안. 시동, 기어, 속도 신호 없이 운전석 착석, 운전석 도어, 트립 거리만으로 추정한다.
@@ -39,6 +60,7 @@ class TripDetector(
     private var lastMoveMs = 0L
     private var startKm: Double? = null
     private var lastKm: Double? = null
+    private val stops = mutableListOf<Stop>()
 
     /** 이벤트 하나를 반영한다. 이 이벤트 시각 기준으로 트립이 끝났으면 그 [Trip]을 돌려준다. */
     fun onEvent(e: VehicleEvent): Trip? {
@@ -52,6 +74,7 @@ class TripDetector(
                     startMs = e.tMs
                     startKm = lastKm
                     driverDoorOpened = false
+                    stops.clear()
                 } else if (!driverSeated && state == State.CANDIDATE) {
                     state = State.IDLE // 타기만 하고 움직이지 않음
                 }
@@ -63,6 +86,10 @@ class TripDetector(
                 lastKm = km
                 if (startKm == null) startKm = km
                 if (prev != null && km > prev && state != State.IDLE) {
+                    // 일시정지에서 깨어날 때 거리가 거의 그대로면 그동안 서 있었던 것이다. 신호가 드문드문 온 것과 구분한다.
+                    if (state == State.PAUSED && km - prev <= STOP_MAX_DELTA_KM) {
+                        stops += Stop(lastMoveMs, e.tMs, prev - (startKm ?: prev))
+                    }
                     state = State.ACTIVE
                     lastMoveMs = e.tMs
                     driverDoorOpened = false
@@ -82,7 +109,7 @@ class TripDetector(
             state = State.IDLE
             leftAtMs = null
             // ponytail: 트립 미터가 주행 중 리셋되면 거리가 틀린다. 필요해지면 증가분 누적으로 바꾼다.
-            return Trip(startMs, leftAt, (lastKm ?: 0.0) - (startKm ?: 0.0))
+            return Trip(startMs, leftAt, (lastKm ?: 0.0) - (startKm ?: 0.0), stops.toList())
         }
         return null
     }
