@@ -25,6 +25,8 @@ Pleos Connect(Android Automotive 기반) 위에서 동작하는 차량용 Androi
 | `docs/05_prototype_plan.md` | 아키텍처, 마일스톤, 시나리오 재생(SIL) 설계 | 구현 시작 전 |
 | `docs/06_open_questions.md` | 미확인 사항, 해야 할 확인 작업 | 막혔을 때 |
 | `docs/07_decision_log.md` | 지금까지의 결정과 이유 | 방향을 바꾸고 싶을 때 |
+| `docs/08_dev_overview.md` | 개발 개요 요약 (데이터 흐름, 기능 현황, 실제와 더미 구분) | 전체 파악, 기획서 작성 시 |
+| `docs/09_view_guide.md` | 화면(View) 작업 범위, 계약, 규칙, AI 지시문 | **`ui/` 작업 전 필수** |
 | `docs/reference/` | 원본 자료 (Notion Charter, Ideas, 외부 피드백, UC v1) | 배경이 필요할 때만 |
 
 ## 4. 확정된 제약 (바꾸려면 반드시 사용자에게 먼저 확인)

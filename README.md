@@ -26,6 +26,8 @@ docs/
   05_prototype_plan.md     아키텍처(정적 구조), 마일스톤, SIL 시나리오 설계
   06_open_questions.md     미확인 사항
   07_decision_log.md       결정 로그
+  08_dev_overview.md       개발 개요 요약 (기능 현황, 실제와 더미 구분)
+  09_view_guide.md         화면(View) 작업 가이드와 AI 지시문
   DEMO-CHECKLIST.md        데모 인수 체크리스트
   SDK-PROOF.md             SDK 실현성 검증 양식
   screenshots/             에뮬레이터 화면 캡처
