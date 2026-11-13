@@ -7,7 +7,7 @@
 | 3 | 준비 중 SDK(STT, TTS, FusedLocation, Control)를 에뮬레이터에서 호출할 수 있는가 | 에뮬레이터 시험 | SIL 범위 | 미확인 |
 | 4 | STT/TTS HYBRID 모드의 서버 사용 여부, 온디바이스 옵션 | STT/TTS 문서 | 기획서 표현 | 미확인 |
 | 5 | 외부 API 없이 지도 표시 가능 여부 | Pleos 문서, NaviHelper 기능 목록 | UC-11 지도 | 미확인 |
-| 6 | CarUxRestrictions 연동 방법과 에뮬레이터에서의 상태 전환 | 앱 개발 가이드, 주의분산 문서 | UC-09 | 미확인 |
+| 6 | CarUxRestrictions 연동 방법과 에뮬레이터에서의 상태 전환 | 앱 개발 가이드, 주의분산 문서 | UC-09 | **확인 완료 (2026-11-14)**: `CarUxRestrictionsManager`로 연동. 에뮬레이터 전환은 Virtual Console의 Gear Selection(P는 제한 없음, D는 DO=true). 문서의 `adb shell cmd hmg_car_service ...` 명령은 에뮬레이터 v2.1.0에서 "Can't find service"로 실패 |
 | 7 | 타 앱 재생 음악 정보(MediaSession) 접근 권한 | 문서, 시험 | UC-04 | 미확인 |
 | 8 | 음성 호출 경로(앱이 포그라운드 아닐 때 "지금 기억해줘") | 문서 | UC-06 | 미확인 |
 | 9 | Pleos 공식 폰 연동 기능 존재 여부 | 문서 | UC-16 재추가 | 미확인 |
