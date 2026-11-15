@@ -1,0 +1,105 @@
+{
+  "duration": 104,
+  "actions": [
+    {
+      "at": 5,
+      "xml": "qa/v4-calendar-oct18.xml",
+      "label": "즐겨찾기 메뉴"
+    },
+    {
+      "at": 8,
+      "xml": "qa/v4-favorites.xml",
+      "label": "8월 16일 바닷가 모래성 열기"
+    },
+    {
+      "at": 14,
+      "xml": "qa/v4-beach.xml",
+      "label": "즐겨찾기(으)로 돌아가기"
+    },
+    {
+      "at": 17,
+      "xml": "qa/v4-favorites.xml",
+      "label": "앨범 메뉴"
+    },
+    {
+      "at": 20,
+      "xml": "qa/v4-home.xml",
+      "label": "오늘의 일기 만들기"
+    },
+    {
+      "at": 24,
+      "xml": "qa/v4-compose-empty.xml",
+      "label": "낙엽을 따라 걷던 길 사진 1 고르기"
+    },
+    {
+      "at": 27,
+      "xml": "qa/v4-compose-empty.xml",
+      "label": "함께 나눠 먹은 점심 사진 2 고르기"
+    },
+    {
+      "at": 30,
+      "xml": "qa/v4-compose-empty.xml",
+      "label": "돌아가기 아쉬웠던 노을 사진 3 고르기"
+    },
+    {
+      "at": 34,
+      "xml": "qa/v4-photos-selected.xml",
+      "label": "다음 이야기"
+    },
+    {
+      "at": 38,
+      "xml": "qa/v4-story.xml",
+      "label": "받아쓰기 시작"
+    },
+    {
+      "at": 54,
+      "xml": "qa/v4-story-done.xml",
+      "label": "다음 가족의 한마디"
+    },
+    {
+      "at": 58,
+      "xml": "qa/v4-voice.xml",
+      "label": "한마디 녹음 시작"
+    },
+    {
+      "at": 64,
+      "xml": "qa/v4-voice-done.xml",
+      "label": "완성된 일기 보기"
+    },
+    {
+      "at": 71,
+      "xml": "qa/v4-preview.xml",
+      "label": "앨범에 저장"
+    },
+    {
+      "at": 76,
+      "xml": "qa/v4-saved.xml",
+      "label": "11월 15일 호숫가에서 보낸 우리의 일요일 즐겨찾기에 넣기"
+    },
+    {
+      "at": 79,
+      "xml": "qa/v4-saved.xml",
+      "label": "달력 메뉴"
+    },
+    {
+      "at": 84,
+      "xml": "qa/v4-calendar-after.xml",
+      "label": "이 날의 일기 펼쳐 보기"
+    },
+    {
+      "at": 88,
+      "xml": "qa/v4-today-reader.xml",
+      "label": "가족의 한마디 재생"
+    },
+    {
+      "at": 95,
+      "xml": "qa/v4-today-reader.xml",
+      "label": "달력(으)로 돌아가기"
+    },
+    {
+      "at": 98,
+      "xml": "qa/v4-calendar-after.xml",
+      "label": "앨범 메뉴"
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+plugins {
+    id 'com.android.application'
+}
+
+// ---------------------------------------------------------------------------
+// The journal UI (HTML + PNG + m4a) lives outside this project, in
+// ../family-journal-v2. It is COPIED into the APK's assets at build time
+// (never symlinked, never edited). Override with -PjournalDir=/abs/path.
+// ---------------------------------------------------------------------------
+def journalSrc = providers.gradleProperty('journalDir')
+        .map { file(it) }
+        .orElse(rootProject.layout.projectDirectory.dir('../family-journal-v2').asFile)
+        .get()
+def journalOut = layout.buildDirectory.dir('generated/journalAssets')
+
+def syncJournalAssets = tasks.register('syncJournalAssets', Sync) {
+    description = 'Copies the family-journal-v2 web UI and media into generated APK assets.'
+    from(journalSrc) {
+        include 'index.html'
+        include 'timeline.json'
+        include 'assets/**/*.png', 'assets/**/*.jpg', 'assets/**/*.jpeg', 'assets/**/*.webp', 'assets/**/*.svg'
+        include 'assets/**/*.m4a', 'assets/**/*.mp3', 'assets/**/*.mp4'
+        include 'assets/**/*.json', 'assets/**/*.css', 'assets/**/*.js'
+        include 'assets/**/*.woff', 'assets/**/*.woff2'
+        // Bundled handwriting font and its licence text (v4.1): only from assets/fonts.
+        include 'assets/fonts/*.ttf', 'assets/fonts/*.txt'
+    }
+    into(journalOut.map { it.dir('journal') })
+    includeEmptyDirs = false
+    doFirst {
+        if (!new File(journalSrc, 'index.html').isFile()) {
+            throw new GradleException(
+                    "Journal UI not found: ${journalSrc}/index.html does not exist yet.\n" +
+                    "Wait for family-journal-v2/index.html or pass -PjournalDir=/path/to/ui")
+        }
+    }
+    doLast {
+        def n = 0
+        long bytes = 0
+        journalOut.get().asFile.eachFileRecurse { f -> if (f.isFile()) { n++; bytes += f.length() } }
+        logger.lifecycle("syncJournalAssets: bundled ${n} files (${(long) (bytes / 1024)} KB) from ${journalSrc}")
+    }
+}
+
+android {
+    namespace 'io.pleos.familyjournal.demo'
+    compileSdk 35
+    buildToolsVersion '35.0.0'
+
+    defaultConfig {
+        applicationId 'io.pleos.familyjournal.demo'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '1.0-demo'
+    }
+
+    buildTypes {
+        debug {
+            debuggable true
+        }
+        release {
+            minifyEnabled false
+            // Demo only: sign release with the debug key so it is installable.
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    sourceSets {
+        main {
+            assets.srcDir(journalOut)
+        }
+    }
+
+    androidResources {
+        // Media must stay uncompressed inside the APK.
+        noCompress += ['m4a', 'mp3', 'mp4', 'png', 'jpg', 'webp']
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+// Every task that reads assets must see the synced copy first.
+tasks.configureEach { t ->
+    if (t.name == 'preBuild') {
+        t.dependsOn(syncJournalAssets)
+    }
+}

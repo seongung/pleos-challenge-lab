@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Pleos Journal</string>
+    <string name="chooser_title">사진 선택</string>
+    <string name="chooser_unavailable">사진을 선택할 수 있는 앱이 없습니다</string>
+</resources>

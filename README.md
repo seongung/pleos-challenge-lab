@@ -1,4 +1,7 @@
-# Pleos Journal (가제)
+# Pleos Journal
+
+> **2026-11-15 앱 시연 v4.1:** [영상, APK, 소스 다운로드](https://github.com/seongung/pleos-challenge-lab/releases/tag/pleos-journal-v4.1) | [화면과 실행 안내](showcase/pleos-journal-v4.1/README.md)
+> 가족 사진과 음성으로 하루 일기를 만드는 별도 인터랙티브 데모입니다. 아래 기존 SDK 앱과 구현 범위가 다릅니다.
 
 현대자동차그룹 차량용 앱 개발 공모전(Pleos Playground) 출품작.
 차가 이동 중 "기억의 단서"를 모으고, 정차 후 사용자가 음성 한마디로 의미를 붙이는 드라이브 저널 앱.
@@ -58,7 +61,8 @@ apk/                       제출용 release APK 위치
 
 ## APK
 
-아직 release APK 없음. 최종 실행 파일 위치: `apk/팀명_앱이름_release.apk`
+앱 사용 시연용 debug APK는 [Pleos Journal v4.1 Release](https://github.com/seongung/pleos-challenge-lab/releases/tag/pleos-journal-v4.1)에서 다운로드할 수 있습니다.
+기존 루트 SDK 앱의 release APK는 별도로 준비해야 합니다. 최종 실행 파일 위치: `apk/팀명_앱이름_release.apk`
 업로드 한도를 넘으면 GitHub Releases를 쓰고 링크를 여기와 지원서에 적는다.
 비공개 저장소 제출 시 주최 측이 공지한 심사용 계정을 Collaborator로 초대한다(계정 확인 후 초대).
 
