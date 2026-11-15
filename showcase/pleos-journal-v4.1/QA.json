@@ -1,0 +1,56 @@
+{
+  "product": "Pleos Journal v4.1",
+  "date": "2026-11-15",
+  "revision": "Handwriting for journal prose only",
+  "font": "Nanum Pen Script / 나눔손글씨펜",
+  "source": "https://noonnu.cc/font_page/44",
+  "design": "Separate Claude Code designer in Rex; recommendation plus actual Android screenshot review",
+  "implementation": "Separate Claude Code implementation agent in Rex",
+  "android": {
+    "device": "Android 15 emulator-5554",
+    "resolution": [
+      1920,
+      1080
+    ],
+    "apk_signature": "v2 signature verified",
+    "font_and_license_packaged": true,
+    "apk_assets_match_source": true,
+    "saved_v4_record_survived_update": true,
+    "screenshots_reviewed": [
+      "finished journal",
+      "editor story mode"
+    ],
+    "result": "Handwriting visible in title/body/captions/quote/writing fields; UI controls/navigation/dates remain sans; sample text fits"
+  },
+  "limits": [
+    "Offline prerecorded dictation/voice prototype",
+    "No physical device or vehicle validation",
+    "Long arbitrary input not exhaustively tested"
+  ],
+  "video": {
+    "duration": 106.166667,
+    "resolution": [
+      1920,
+      1080
+    ],
+    "fps": 30,
+    "actual_taps": 20,
+    "end_state": "six saved journals",
+    "decode": "passed",
+    "video_stream_matches_audio_duration": true,
+    "http_range": 206,
+    "visual_review": "Ten final-export frames inspected; journal handwriting present and UI sans preserved."
+  },
+  "audio": {
+    "input_i": "-23.36",
+    "input_tp": "-6.33",
+    "input_lra": "10.30",
+    "input_thresh": "-33.54",
+    "output_i": "-17.48",
+    "output_tp": "-2.00",
+    "output_lra": "9.10",
+    "output_thresh": "-27.64",
+    "normalization_type": "dynamic",
+    "target_offset": "-0.52"
+  }
+}

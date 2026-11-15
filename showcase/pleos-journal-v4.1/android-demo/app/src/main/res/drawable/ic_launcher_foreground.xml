@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- An open photo journal: two pages, a photo with a low sun, and text lines. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- book shadow / cover -->
+    <path
+        android:fillColor="#2B2622"
+        android:pathData="M30,37 h48 a3,3 0 0 1 3,3 v31 a3,3 0 0 1 -3,3 h-48 a3,3 0 0 1 -3,-3 v-31 a3,3 0 0 1 3,-3 z" />
+    <!-- left page -->
+    <path
+        android:fillColor="#FFFDF8"
+        android:pathData="M30,39 h23 v32 h-23 a1,1 0 0 1 -1,-1 v-30 a1,1 0 0 1 1,-1 z" />
+    <!-- right page -->
+    <path
+        android:fillColor="#FFFDF8"
+        android:pathData="M55,39 h23 a1,1 0 0 1 1,1 v30 a1,1 0 0 1 -1,1 h-23 z" />
+    <!-- photo on left page -->
+    <path
+        android:fillColor="#E9C9A2"
+        android:pathData="M32,42 h18 v15 h-18 z" />
+    <path
+        android:fillColor="#B8743C"
+        android:pathData="M41,52 m-4,0 a4,4 0 1 1 8,0 a4,4 0 1 1 -8,0" />
+    <path
+        android:fillColor="#7A5A3E"
+        android:pathData="M32,53 h18 v4 h-18 z" />
+    <!-- caption under photo -->
+    <path
+        android:fillColor="#B9AFA2"
+        android:pathData="M32,61 h14 v1.6 h-14 z M32,65 h9 v1.6 h-9 z" />
+    <!-- text lines on right page -->
+    <path
+        android:fillColor="#2B2622"
+        android:pathData="M58,43 h14 v2.2 h-14 z" />
+    <path
+        android:fillColor="#B9AFA2"
+        android:pathData="M58,49 h18 v1.6 h-18 z M58,53 h18 v1.6 h-18 z M58,57 h15 v1.6 h-15 z M58,61 h18 v1.6 h-18 z M58,65 h10 v1.6 h-10 z" />
+</vector>
